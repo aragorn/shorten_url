@@ -1,0 +1,52 @@
+/* $Id$ */
+
+table.list, 
+table.list td {
+}
+
+table.list,
+table.list tr             { display: block; }
+table.list td {
+ display: block;
+ margin: 2px;
+}
+
+table.list tr              { display: block; padding-left: 5em; position: relative; clear: both; }
+table.list tr              { border-bottom: 1px solid #ccc; margin-bottom: 5px; }
+table.list tr:after        { content: "clearing float"; clear: both; display: block; height: 0; visibility: hidden; }
+table.list td              { display: block; float: left; padding: 0.2em 0.5em; overflow: hidden; text-overflow: ellipsis; background: transparent; }
+table.list td:hover        { overflow: visible; z-index: 10; }
+
+table.list td a            { color: black; text-decoration: none; }
+table.list td a:hover      { background-color: #cdf; }
+
+table.list td.url_id       { position: absolute; left: 0em; top: 0;  width: 3.5em; text-align: right; }
+table.list td.shorten_url  { width: 15em; border: 3px solid #fcc; }
+table.list td.original_url { width: 35em; border: 3px solid #cfc; }
+table.list td.original_title { width: 40em; clear: left; font-weight: bold; }
+table.list td.website,
+table.list td.created_on,
+table.list td.updated_on,
+table.list td.http_code,
+table.list td.mime_type,
+table.list td.mime_type    { width: 10em; color: #aaa; }
+table.list td.website      { clear: left; }
+
+table.list td.source       { width: 4em; }
+table.list td.has_no_info,
+table.list td.has_original_url,
+table.list td.has_title,
+table.list td.has_image,
+table.list td.is_dead,
+table.list td.is_unreachable,
+table.list td.unknown      { width: 1em; }
+
+ul.page-nav    { text-align: left; padding: 7px 0 7px 0; padding-left: 4em; }
+ul.page-nav li { display: inline-block; padding: 1px 2px 1px 2px; }
+ul.page-nav li a { display: block; padding: 1px 6px 1px 6px; text-decoration: none; }
+ul.page-nav li a         { border: 1px solid #aaa; background-color: #dfd; color: #666; }
+ul.page-nav li a.current { border: 2px solid #888; background-color: #bfb; color: #666; }
+ul.page-nav li a:hover         { border: 1px solid #666; background-color: #ddf; color: black; }
+ul.page-nav li a.current:hover { border: 2px solid #444; background-color: #ddf; color: black; }
+
+

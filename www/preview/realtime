@@ -1,0 +1,12 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+use CGI qw(:standard);
+
+my $q = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+
+print $q->header(-charset=>'utf-8', -type=>'text/html');
+
+print div( h3("hello, world!") );
+

@@ -1,0 +1,66 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/perl/lib/perl5/site_perl';
+use lib '/home/aragorn/preview/lib';
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+use strict;
+use warnings;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use Daum::ShortenURL;
+
+our @DEBUG;
+
+my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+my $url     = param('u') || "";
+my $referer = param('referer') || "";
+my $shorten = new Daum::ShortenURL;
+
+my ($row,$res) = $shorten->lookup_local($url,$referer);
+
+my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_url);
+$title = "제목이 없습니다" unless $title;
+
+if ($q->self_url =~ m/debug/) {
+
+  print $q->header(-charset=>'utf-8', -type=>'text/html');
+  print <<END;
+<p class="title">$title</p>
+<p class="url">$original_url</p>
+END
+
+  my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+  print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
+  print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
+  print p({class=>'debug'}, "loaded from local db")."\n" if $row->{url_id};
+  foreach ( @DEBUG ) { print p({class=>'debug'}, $_); }
+
+
+  ($row,$res) = $shorten->fetch($url,$referer);
+  my %query = (
+    surl   => $url,
+    ourl   => $row->{original_url},
+    otitle => $row->{original_title},
+    code   => $row->{http_code},
+    mime   => $row->{mime_type},
+    source => 'debug',
+    submit => 'true',
+  );
+  my $put_query = join(";", map(+("$_=".escape($query{$_})),
+                                qw(surl ourl otitle code mime source submit)));
+  #for ( qw(surl ourl otitle code mime) ) { print p({class=>'debug'}, qq($_:$query{$_})); }
+
+  print p({class=>'debug'}, "put ",
+          a({href=>"put?".$put_query}, "put?".$put_query));
+
+} elsif ($url) {
+  my $redirected_url = $original_url || $url;
+  print $q->redirect($redirected_url);
+} else {
+  print $q->header(-charset=>'utf-8', -type=>'text/html');
+  print p({class=>'debug'}, "no parameter or invalid parameter");
+}
+
+exit;
+

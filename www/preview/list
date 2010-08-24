@@ -1,0 +1,135 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/preview/lib';
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+use strict;
+use warnings;
+use utf8;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use Daum::ShortenURL;
+
+our @DEBUG;
+our @fields_url_trans = 
+  qw(url_id shorten_url original_url 
+     original_title 
+     website
+     created_on updated_on http_code mime_type source
+     has_no_info has_original_url has_title has_image
+     is_dead is_unreachable);
+
+my $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+my $from  = param('from'); $from = -1 unless defined $from;
+my $count = param('count') || 20;
+my $website = param('website');
+my $original_url = param('original_url');
+my $shorten = new Daum::ShortenURL;
+
+print $q->header(-charset=>'utf-8', -type=>'text/html');
+print start_html(-title=>'List of url_translation',
+                 -encoding=>'utf-8',
+                 -style=>{-src=>"/css/style.css"},
+      );
+
+my ($urls,$list) = $shorten->list($from,$count,$website,$original_url);
+
+my $commified_urls = $urls;
+$commified_urls =~ s/(^[-+]?\d+?(?=(?>(?:\d{3})+)(?!\d))|\G\d{3}(?=\d))/$1,/g;
+if ($website) { print h1("list of urls in $website: $commified_urls"); }
+else          { print h1("list of urls: $commified_urls"); }
+
+print get_search_form();
+print get_page_links($from, $count, $urls);
+
+my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
+
+print qq(<table class="list"><tr>\n);
+map { print "<td class=\"head $_\">$_</td>\n"; } @fields_url_trans;
+print "</tr>\n";
+
+foreach my $row ( @list )
+{
+  my $redirect = "redirect?u=". escape($row->{shorten_url});
+  print "<tr>\n";
+  print qq(<td class="url_id">$row->{url_id}</td>\n);
+  print qq(<td class="shorten_url"><a href="$redirect" target="_blank">$row->{shorten_url}</a></td>\n);
+  print qq(<td class="original_url"><a href="$row->{original_url}" target="_blank">$row->{original_url}</a></td>\n);
+  print qq(<td class="original_title">$row->{original_title}</td>\n);
+  print qq(<td class="website"><a href="?website=$row->{website}">$row->{website}</a></td>\n);
+  map {
+    print qq(<td class="$_">$row->{$_}</td>\n);
+  }
+  qw(
+     created_on updated_on http_code mime_type source
+     has_no_info has_original_url has_title has_image
+     is_dead is_unreachable);
+  print "</tr>\n";
+}  
+
+print qq(</table>\n);
+
+print get_page_links($from, $count, $urls);
+
+
+my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+print p({class=>'debug'}, "elapsed=", tv_interval($t01, $t02))."\n";
+print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
+map { print p({class=>'debug'}, $_); } $shorten->debug if $q->self_url =~ m/debug/;
+map { print p({class=>'debug'}, $_); } @DEBUG if $q->self_url =~ m/debug/;
+
+exit;
+
+sub get_page_links
+{
+  my $from  = shift;
+  my $count = shift;
+  my $urls  = shift;
+  my $website      = param('website');
+  my $original_url = param('original_url');
+  #push @DEBUG, "from=$from;count=$count;urls=$urls;website=$website;";
+  $from = int( $urls / $count ) * $count if $from < 0;
+  my $max_pages = int($urls / $count + 1.0);
+  my $current = $from / $count + 1;
+  my @pages;
+  #push @DEBUG, "from=$from;count=$count;urls=$urls;website=$website;current=$current;";
+
+  my $start = $current - 9;
+  $start = 1 if $start < 1;
+  my $end = $start + 19;
+  $end = $max_pages if $end > $max_pages;
+
+  push @pages, 1 if $start > 1;
+  push @pages, 0 if $start > 2;
+  push @pages, $start..$end;
+  push @pages, 0          if $end < $max_pages-1;
+  push @pages, $max_pages if $end < $max_pages;
+
+  my @html;
+  my $href = "c=$count;";
+  $href .= "website=".escape($website).";" if $website;
+  $href .= "original_url=".escape($original_url).";" if $original_url;
+  push @html, qq(<ul class="page-nav">);
+  foreach my $p ( @pages ) {
+    push @html, li("...") unless $p;
+    next unless $p;
+    my $f = ($p-1) * $count;
+    my $class = ""; $class = "current" if ($p == $from / $count + 1);
+    push @html, li(qq(<a href="?from=$f;$href" class="$class">$p</a>));
+  }
+  push @html, li(qq(<a href="?$href">last</a>));
+  push @html, qq(</ul>);
+  return @html;
+}
+
+sub get_search_form
+{
+  my $original_url = shift;
+
+  my @html;
+  push @html, start_form('GET', '', &CGI::URL_ENCODED),
+    textfield(-name=>'original_url',-value=>$original_url, -size=>30, -maxlength=>80),
+    submit(-name=>'submit', -value=>'Search'),
+  end_form;
+  return @html;
+}

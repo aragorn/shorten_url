@@ -1,0 +1,155 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/preview/lib';
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+use strict;
+use warnings;
+use utf8;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use LWP::Simple qw(!head);
+use XML::Simple;
+use Unicode::Map;
+use Unicode::String qw(utf8);
+use Data::Dumper;
+#use Daum::ShortenURL;
+
+our @DEBUG;
+my $cp949 = new Unicode::Map("cp949");
+
+#my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
+my $base_url = "http://10.31.125.234:7777/front/search.py?q=%s&p=%s";
+my $parser  = new XML::Simple;
+my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+my $query   = param('q') || ""; utf8::decode($query);
+my $page    = param('p') || "1";
+my $where   = param('w') || "tot";
+
+my $query_cp949   = $cp949->from_unicode(utf8($query));
+
+print $q->header(-charset=>'utf-8', -type=>'text/html');
+#print $q->header(-charset=>'cp949', -type=>'text/html');
+
+=rem
+print p({class=>'debug'}, "query=$query,query_cp949=$query_cp949");
+print "query($query) is utf8" if utf8::is_utf8($query);
+print "query($query) is not utf8" unless utf8::is_utf8($query);
+print "<br/>";
+my $decoded = $query_cp949; utf8::decode($decoded);
+print "query($decoded) is utf8" if utf8::is_utf8($decoded);
+print "query($decoded) is not utf8" unless utf8::is_utf8($decoded);
+=cut
+
+my $search_url = sprintf($base_url, escape($query_cp949), $page);
+$search_url = sprintf($base_url, escape($query), $page) unless utf8::is_utf8($query);
+my $xml = LWP::Simple::get($search_url);
+my $result = $parser->XMLin($xml, noattr=>1, suppressempty=>1);
+
+my $total_count = $result->{'m'}->{'c'};
+my $page_count  = $result->{'m'}->{'pc'};
+my @list     = @{ $result->{'ds'}->{'data'} };
+
+if ($where eq "tot")
+{
+print <<END;
+<div id="realTimeColl">
+ <div class="collTitle">
+ <h2 class="fL">소셜네트워크 검색</h2>
+ </div>
+ <div class="collTot" style="height: inherit;">
+  <ul id="realTimeList" style="height: inherit;">
+END
+} else {
+print <<END;
+<div id="snsColl">
+ <div class="collTitle">
+ <h2 class="hide">소셜네트워크 검색</h2>
+ </div>
+ <div class="collTot" style="height: inherit;">
+  <ul id="snsList">
+END
+}
+
+foreach my $doc ( @list )
+{
+  my ($title,$url,$sns_userid,$channel_url,$image_url,$writedttm,$rich_score)
+   = map { $doc->{$_} } qw(title url sns_userid channel_url image_url writedttm rich_score);
+  my $twitter_link = "트위터 원문보기";
+  print <<END;
+<!--BEGIN-->
+<li>
+ <div class="divAniBox">
+  <div class="thumb fL">
+   <a href="$channel_url" target="_blank"><img src="$image_url" width="48" height="48" alt/></a>
+  </div>
+  <div class="commentBox">
+    <div class="commentBody">
+      <p class="base desc">$title</p>
+      <p class="info">
+        <a href="$channel_url" target="_blank" class="getTime">
+          <span id="getRealIndexTime_0" class="getTime">
+          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
+          </span>
+        </a>
+        <span class="vline">|</span>
+        <span class="nick">
+          <a href="$channel_url" target="_blank" class="g_tit">$sns_userid</a>
+        </span>
+        <span class="vline">|</span>
+        <span class="source icoTwitter">
+          <a href="$channel_url" target="_blank" class="g_tit">$twitter_link</a>
+        </span>
+      </p>
+    </div>
+    <div class="commentFoot"></div>
+  </div>
+  <div class="clr"></div>
+ </div>
+</li>
+<!--END-->
+END
+}
+
+if ($where eq "tot")
+{
+  my $query_escaped = escape($query);
+  print <<END;
+  </ul>
+ </div>
+ <div class="moreArea">
+   <a href="?w=dir&m=sns&q=$query_escaped">소셜네트워크 더보기</a>
+ </div>
+</div>
+<!-- end SNS Coll -->
+<!-- 구분라인 -->
+<div id="line"></div>
+<hr>
+<!-- end 구분라인 -->
+END
+} else {
+  print <<END;
+  </ul>
+ </div>
+</div>
+END
+}
+
+#print pre(Dumper($result));
+
+my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
+print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
+if ($q->self_url =~ m/debug/) {
+  foreach ( @DEBUG ) { print p({class=>'debug'}, $_); }
+  print p({class=>'debug'}, "reload ",
+          a({href=>"?".$q->query_string},
+            $q->unescape($q->script_name ."?". $q->query_string)));
+}
+print <<END;
+<div id="line"></div>
+<hr>
+END
+
+exit;
+

@@ -1,0 +1,70 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/perl/lib/perl5/site_perl';
+use lib '/home/aragorn/preview/lib';
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+use strict;
+use warnings;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use Daum::ShortenURL;
+
+our @DEBUG;
+
+my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+my $shorten_url    = param('surl')   || "";
+my $original_url   = param('ourl')   || "";
+my $original_title = param('otitle') || "";
+my $http_code      = param('code')   || "";
+my $mime_type      = param('mime')   || "";
+my $referer        = param('referer') || "";
+my $source         = param('source') || "unknown";
+my $submit         = param('submit');
+
+my $shorten = new Daum::ShortenURL;
+
+print $q->header(-charset=>'utf-8', -type=>'text/plain');
+
+unless (defined $submit and $submit eq 'true')
+{
+  print qq(ERROR\n);
+  print qq(no submit value\n);
+  exit;
+}
+
+
+my ($row,$res) = $shorten->lookup_local($shorten_url);
+if (exists $row->{url_id}) {
+  my $url_id = $row->{url_id};
+  #print qq(WARNING\n);
+  #print qq(url already exists: $url_id - $shorten_url\n);
+
+  my $r = $shorten->update($url_id, $shorten_url, $original_url,
+    $original_title, $http_code, $mime_type, $referer, $source);
+  if ($r) {
+    print qq(OK\n);
+    print qq(successfully updated: $url_id - $shorten_url\n);
+    map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+  } else {
+    print qq(ERROR\n);
+    print qq(error[$r] occurred: $url_id - $shorten_url\n);
+    map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+  }
+  exit;
+}
+
+my $r = $shorten->put($shorten_url, $original_url,
+  $original_title, $http_code, $mime_type, $referer, $source);
+if ($r) {
+  print qq(OK\n);
+  print qq(successfully saved: $shorten_url\n);
+  map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+} else {
+  print qq(ERROR\n);
+  print qq(error[$r] occurred: $shorten_url\n);
+  map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+}
+
+exit;
+

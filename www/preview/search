@@ -1,0 +1,355 @@
+#!/usr/bin/perl -w
+
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+use strict;
+use warnings;
+use utf8;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use LWP::UserAgent;
+use LWP::Simple qw(!head);
+#use Unicode::Map;
+use Unicode::String qw(utf8);
+sub get_fixed_head ($\$);
+sub get_fixed_body ($\$);
+
+my $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $self_url = $q->self_url;
+#my $euckr = new Unicode::Map('EUC-KR');
+
+print $q->header(-charset=>'utf-8', -type=>'text/html');
+
+my $res = fetch_search_result($q);
+my $debug = "<p>debug=hello, world</p>\n";
+if ($res->is_success) {
+  my ($html_head, $html_head_close, $html_body, $html_body_close, $html_close)
+    = split(/(<\/head>|<\/body>)/, $res->decoded_content);
+
+  my @head = get_fixed_head($html_head, $debug);
+  print join("\n", @head, "\r\n\r\n".$html_head_close."\r\n");
+
+  my @body = get_fixed_body($html_body, $debug);
+  print join("\n", @body);
+
+  $debug .= p("base=", $res->base)."\n";
+  my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+  $debug .= p("elapsed=", tv_interval($t01, $t02))."\n";
+  $debug .= p("benchmark=", timestr(timediff($t2, $t1)))."\n";
+  foreach ($res->headers->header_field_names) {
+    $debug .= p("http $_=", $res->header($_))."\n";
+  }
+  print $debug, $html_body_close, $html_close;
+}
+else { print $res->status_line, "\n"; }
+
+exit;
+##############################################################################
+sub html_sns_collection {
+  my $h = "";
+  my $query = $q->param('q') || "iphone4";
+  my $query_escaped = escape($q->param('q')) || "";
+  my $where = $q->param('w') || "";
+  my $page  = 1;
+  my $base_url = "http://10.31.125.236/debug/sns?q=%s&p=%s&w=$where";
+  my $search_url = sprintf($base_url, escape($query),$page);
+  my $html = LWP::Simple::get($search_url);
+  utf8::decode($html);
+  #return $html;
+
+  $h = <<END;
+<!-- SNS Coll -->
+<div id="snsColl">
+  <div class="collTitle">
+    <h2 class="fL">소셜네트워크 <span id="snsSQC_coll" style="display: none;"></span></h2>
+  </div>
+  <div class="collTot">
+    <ul class="uccUl">
+END
+  my @entries = (
+    { content_url=>'http://www.daum.net/', title=>'준비 중입니다.',
+      desc=>'아직 준비 중입니다.', meta_url=>'http://blog.daum.net/', meta_name=>'닉네임' },
+    { content_url=>'http://www.daum.net/', title=>'준비 중입니다.',
+      desc=>'아직 준비 중입니다.', meta_url=>'http://blog.daum.net/', meta_name=>'닉네임' },
+  );
+  foreach my $entry ( @entries ) { $h .= html_list_entry(%$entry); }
+  $h .= <<END;
+    </ul>
+  </div>
+  <div class="moreArea">
+    <a href="?w=sns&q=$query_escaped">소셜네트워크 더보기</a>
+  </div>
+</div>
+<!-- end SNS Coll -->
+<!-- 구분라인 -->
+<div id="line"></div>
+<hr>
+<!-- end 구분라인 -->
+END
+}
+
+sub html_list_entry
+{
+  my %item = @_;
+  if (exists $item{source} and $item{source} eq 'twitter')
+  {
+    return <<END;
+<li>
+  <div class="divAniBox">
+    <div class="thumb fL">
+      <a href="$item{content_url}" target="_blank">
+        <img src="$item{thumbnail}" width="48" height="48" alt/>
+      </a>
+    </div>
+    <div class="commentBox">
+      <div class="commentBody">
+        <p class="base desc">$item{desc}</p>
+        <p class="info">
+          <a href="$item{content_url}" target="_blank" class="getTime">
+            <span id="getSNSIndexTime_9" class="getTime">
+              <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
+            </span>
+          </a>
+          <span class="vline"> | </span>
+          <span class="nick"><a href="$item{meta_url}" target="_blank" class="g_tit">$item{user_nick}</a></span>
+          <span class="vline"> | </span>
+          <span class="source"><a href="$item{content_url}" target="_blank" class="g_tit">트위터 원문보기</a></span>
+        </p>
+      </div>
+      <div class="commentFoor"></div>
+    </div>
+    <div class="clr"></div>
+  </div>
+</li>
+END
+  } else {
+    return <<END;
+<li>
+  <div class="divAniBox">
+    <div class="textBox">
+      <a href="$item{content_url}" class="gtit" target="_blank">$item{title}</a>
+      <p class="base desc">$item{desc}</p>
+      <p class="info">
+        <span id="getSNSIndexTime_9" class="getTime">
+          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
+        </span>
+        <span class="vline"> | </span>
+        <span class="source"><a href="$item{meta_url}" target="_blank" class="g_tit">$item{meta_name}</a></span>
+      </p>
+    </div>
+    <div class="clr"></div>
+  </div>
+</li>
+END
+  }
+
+}
+
+##############################################################################
+sub get_fixed_head ($\$) {
+  my ($html_head, $debugref) = @_;
+  my @html_head = split(/\r?\n/, $html_head);
+  foreach ( @html_head ) {
+    if ( $_ eq q(<meta http-equiv="Content-Type" content="text/html; charset=euc-kr">) ) {
+      $$debugref .= p("source charset=euc-kr")."\n";
+      $_ = q(<meta http-equiv="Content-Type" content="text/html; charset=utf-8">);
+    }
+    if ( $_ =~ m/document.writeln/ ) { $_ = ""; }
+  }
+  push @html_head, q(<link rel="stylesheet" type="text/css" href="/cluetip/jquery.cluetip.css" />);
+  push @html_head,
+   q(<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>);
+  push @html_head, q(<script type="text/javascript" src="/js/jquery.hoverIntent.js"></script>);
+  push @html_head, q(<script type="text/javascript" src="/js/jquery.cluetip.js"></script>);
+  push @html_head, <<END; 
+<script type="text/javascript"><!--//
+\$(document).ready(function() {
+  \$('p.base.desc a.stit').cluetip({
+/*
+     width:380,
+     sticky:false,
+     showTitle:false,
+     clickThrough:true,
+     cluetipClass:'default',
+*/
+     width:380,
+     sticky:true,
+     showTitle:false,
+     clickThrough:true,
+     cluetipClass:'default',
+     closePosition:'bottom',
+     closeText: '<img src="/cluetip/images/cross.png" alt="Close" />',
+
+     xxend:0
+  });
+  
+  \$('#houdini').cluetip({
+    splitTitle: '|', // use the invoking element's title attribute to populate the clueTip...
+                     // ...and split the contents into separate divs where there is a "|"
+    showTitle: false // hide the clueTip's heading
+  });
+});
+//--></script>
+END
+  push @html_head, <<END;
+<style type="text/css">
+a.g_tit.twitter:link,
+a.g_tit.twitter:visited { color: #2276BB; color: #09c; }
+a.stit.twitter:link,
+a.stit.twitter:visited { color: #2276BB; color: #09c; }
+</style>
+END
+  return @html_head;
+}
+
+sub url_link {
+  my $prev   = shift || "";
+  my $url    = shift || "";
+  my $class  = shift || "";
+  my $source = shift || "";
+
+  my $rel  = "get?u=". escape($url) ."&referer=". escape($source); 
+  my $href = "redirect?u=". escape($url) ."&referer=". escape($source); 
+
+  if ($self_url =~ m/debug/) {
+     $rel  = "get?u=". escape($url) ."&fetch=1&save=0&referer=". escape($source); 
+  }
+
+  return <<END;
+$prev<a href="$href" target="_blank" class="stit auto tips $class" rel="$rel"
+ xxtitle="about this link:">$url</a>
+END
+}
+
+sub twitter_link {
+  $_ = shift;
+=rem
+=cut
+  s{ ( ^ | \s | [^A-Za-z0-9] )
+     \@
+     ([A-Za-z0-9_]+)
+   } ! qq($1\@<a href="http://twitter.com/$2" target="_blank" class="g_tit twitter">$2</a>) !isogxe;
+  s{ ( ^ | \s | [^A-Za-z0-9] )
+     \#
+     ([A-Za-z0-9_\w]+)
+   } ! qq($1<a href="http://twitter.com/search?q=)
+       .escape("#$2").
+       qq(" target="_blank" class="g_tit twitter">#$2</a>) !isogxe;
+  $_;
+}
+
+sub realtime_tab_list {
+  my $html = shift;
+  my (undef,@item) = split(/<\/li>\s*<li>|<li>|<\/li>/, $html);
+  pop @item;
+
+  my $param_autolink = param('autolink') || "";
+  foreach ( @item ) {
+    my ($class,$source) = ("","");
+    m!<p\sclass="info">\s*<a\shref="([^"]+)"!isogx and $source = $1;
+    $class = "twitter" if index($source, "twitter.com")> 0;
+    
+    s{ ( \s | (?<!url)\( | \< | : | ^ | \w | [\x21\x23-\x26\x28-\x7e] ) # $1
+       (                            # $2
+         ( http:// | https:// )     # $3
+         \w+ (\.\w+)+ (/ [^\s\)\>\<]{1,200} )?
+       ) (?=\s|\)|\>|\<|$)             # not $4
+     } ! url_link($1, $2, $class, $source) !iogxe;
+
+    s{ ( <p\sclass="base\sdesc"> )     # $1
+       ( .{0,500} )                   # $2
+       ( </p>\s* )                    # $3
+       (?=<p\sclass="info">)       # not $4
+     }
+     ! $1 . twitter_link($2) . $3 !isogxe
+     if $class eq "twitter";
+  }
+=rem
+=cut
+
+  return join("\n", map { "<!--BEGIN--><li>$_</li><!--END-->" } @item);
+}
+
+sub get_fixed_body ($\$) {
+  my ($html_body, $debugref) = @_;
+  my $html_sns_collection = html_sns_collection();
+  my $param_w = param('w') || "";
+  my $param_m = param('m') || "";
+  my $param_autolink = param('autolink') || "";
+  my $collection_separator = "<!-- end 구분라인 -->";
+  my @collections = split(/$collection_separator/, $html_body);
+
+  my @body;
+  foreach my $col ( @collections ) {
+#print STDERR "col=". substr($col, 0, 50). "\n";
+    #s{ ( <ul\sid="realTimeList"> )     # $1
+    $col =~ s{ ( <ul\sid="realTimeList"\s*> )     # $1
+               ( .* )                 # $2
+               (?=</ul>)                       # not $3
+             } #! "matched begin" . $1 . $2 . "end" !isogxe;
+             ! $1 . realtime_tab_list($2) !isogxe
+            #if $param_w eq 'dir' and $param_m eq 'sch_realtime';
+            if ( ($param_w eq 'dir' and $param_m eq 'sch_realtime'
+                  or 0 ) and $param_autolink ne 'off' );
+    
+    my @html_body = split(/\r?\n/, $col);
+    foreach ( @html_body ) {
+      s#http://search.daum.net/search#/preview/search#go;
+      s#\("autocomplete","off"\);</script></span>#\("autocomplete","off"\);</script>#go; # fixed html error
+    }
+
+    do { foreach ( @html_body ) {
+      #s/(<div id="newsColl")/$html_sns_collection\n\n$1/go;
+      s/(<!-- 실시간 검색 Coll -->)/$html_sns_collection\n\n$1/go if $param_w eq 'tot';
+    } } if $param_w eq 'tot';
+
+    do { foreach ( @html_body ) {
+      s{ ( \s | (?<!url)\( | \< | : | ^ | \w ) # $1
+         (                            # $2
+           ( http:// | https:// )     # $3
+           \w+ (\.\w+)+ (/ [^\s\)\>\<]{1,45} )?
+         ) (?=\s|\)|\>|\<|$)             # not $4
+       } ! url_link($1, $2) !iogxe;
+      s{ ( <p\sclass="base desc"> )     # $1
+         ( .{0,300} )                   # $2
+         ( </p> )                       # $2
+         (?=<p\sclass\="info">)       # not $3
+       } ! $1 . $2 !iogxe;
+      s{ ( <ul\sid="base desc"> )     # $1
+         ( .{0,300} )                   # $2
+         ( </p> )                       # $2
+         (?=<p\sclass\="info">)       # not $3
+       } ! $1 . $2 !iogxe;
+    } } if ( ($param_w eq 'dir' and $param_m eq 'sch_realtime'
+              or 0 ) and $param_autolink ne 'off' );
+
+    push @body, @html_body;
+  }
+  #return @html_body;
+  #return @collections;
+  return @body;
+}
+##############################################################################
+
+my $ua;
+sub fetch_search_result {
+  my $q = shift;
+  my $url = "http://search.daum.net/search?"
+    . $q->query_string;
+  $url =~ s/;/&/go;
+
+  if ( not defined $ua ) {
+    $ua = LWP::UserAgent->new;
+    $ua->agent("DaumSearchTest/0.1");
+  }
+
+  my $req = HTTP::Request->new(GET => $url);
+  my $res = $ua->request($req);
+  return $res;
+}
+
+##############################################################################
+# XXX url encoding by charset
+# UTF-8  - 월드컵 - %EC%9B%94%EB%93%9C%EC%BB%B5
+# EUC-KR - 월드컵 - %BF%F9%B5%E5%C4%C5
+##############################################################################

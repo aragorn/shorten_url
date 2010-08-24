@@ -1,0 +1,26 @@
+#!/usr/bin/perl
+
+use strict;
+
+my $dir = shift;
+unless ($dir) {
+  print <<END;
+Usage: $0 <dir>
+  dir     - directory which has search engine data-source files
+END
+  exit;
+}
+
+my @files = `ls $dir`;
+
+my $count = 0;
+foreach ( @files )
+{
+  chomp;
+  if ( fork ) { $count++; next; }
+  else {
+    print qq(./src2db $dir/$_\n);
+    system("./src2db", "$dir/$_");
+    exit;
+  }
+}

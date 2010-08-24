@@ -1,0 +1,87 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/perl/lib/perl5/site_perl';
+use lib '/home/aragorn/preview/lib';
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+use strict;
+use warnings;
+use utf8;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use Daum::ShortenURL;
+
+our @DEBUG;
+
+binmode STDOUT, ":encoding(UTF-8)";
+
+my $shorten = new Daum::ShortenURL;
+
+my $source_file = shift || "-";
+if ($source_file eq "-") { open(SRC, "-") or die "cannot open stdin: $!"; }
+else { open(SRC, $source_file) or die "cannot open file[$source_file]: $!"; }
+
+my (%fields, $name, $value, $has_multiline, @buffer);
+while ( <SRC> )
+{
+  chomp; next unless $name or $_;
+  utf8::decode($_);
+  push @buffer, $_;
+  if ( m/^\^\[start\]/io ) { (%fields,$name,$value,$has_multiline, @buffer) = (); }
+
+  if ( m/^\^\[(\w+)\]\s*(.*)/io ) {
+    $name = $1;
+    $value = $2;
+    $fields{$name} = $value;
+    if ( $name eq 'end' ) {
+      # skip this line
+      my @matched = $shorten->match_url($fields{title});
+      #print "XXX: $_" if $matched_http and @matched < 1;
+      #print "url: $fields{url}\n" if @matched > 0;
+      foreach ( @matched ) { fetch_and_save($_, $fields{url}); }
+    }
+  } else {
+    $value .= "\n" . $_;
+    $fields{$name} = $value;
+    $has_multiline = 1;
+  }
+
+=rem
+  if ( m/^\^\[end\]/io and $has_multiline ) {
+    print "-" x 80, "\n";
+    map { print "$_ [$fields{$_}]\n"; } keys %fields;
+    foreach ( @buffer ) { print ">> $_\n"; }
+  }
+=cut
+
+}
+close(SRC);
+
+sub fetch_and_save
+{
+  my $url = shift;
+  my $referer = shift;
+
+  #my $shorten = new Daum::ShortenURL;
+  
+  my ($row,$res) = $shorten->lookup_local($url,$referer);
+  if (not exists $row->{url_id}) {
+    print "$url - $referer\n";
+    ($row,$res) = $shorten->fetch_and_save($url, $referer, "batch");
+  }
+
+=rem
+  my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_url);
+  $title = "제목이 없습니다" unless $title;
+
+  print <<END;
+<p class="title">$title</p>
+<p class="url">$original_url</p>
+----------------------------------------------------------------------
+END
+=cut
+  #sleep 1;
+}
+
+1;
+
