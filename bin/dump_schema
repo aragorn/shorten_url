@@ -1,0 +1,5 @@
+#!/usr/bin/perl
+
+my $database = shift;
+
+system("mysqldump", "--no-data", $database, @ARGV);
