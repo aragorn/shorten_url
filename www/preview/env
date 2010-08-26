@@ -10,9 +10,34 @@ print $q->header(-charset=>'utf-8', -type=>'text/html');
 
 print $q->start_html(-lang=>'ko_KR', -encoding=>'utf-8', -title=>$server_name);
 
+print h2('%ENV');
 print "<table>";
 foreach ( sort keys %ENV )
 {
   print "<tr><th>$_</th><td>$ENV{$_}</td></tr>\n";
 }
 print "</table>";
+
+print h2("CGI::http('http_host')=".CGI::http('http-host'));
+my %HTTP = CGI::http();
+print "<table>";
+foreach ( sort keys %HTTP )
+{
+  print "<tr><th>$_</th><td>$HTTP{$_}</td></tr>\n";
+}
+print "</table>";
+
+
+print h2('Daum::ShortenURL');
+use Daum::ShortenURL;
+
+my $shorten = new Daum::ShortenURL;
+my %CONFIG = %Daum::ShortenURL::CONFIG;
+
+print "<table>";
+foreach ( sort keys %CONFIG )
+{
+  print "<tr><th>$_</th><td>$CONFIG{$_}</td></tr>\n";
+}
+print "</table>";
+
