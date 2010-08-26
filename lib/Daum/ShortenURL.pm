@@ -22,7 +22,7 @@ BEGIN {
 
   %CONFIG_ALL = (
   example  => 'none',
-  '110.45.208.13:80' =>
+  '110.45.208.13' =>
     { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.21',
       DBUSER=>'url_svc', DBPASSWD=>'image1002' },
@@ -31,7 +31,7 @@ BEGIN {
       DBNAME_SLAVE  => 'database=url_test;host=10.10.208.21',
       DBUSER=>'url_test', DBPASSWD=>'image1001' },
 
-  '110.45.208.14:80' =>
+  '110.45.208.14' =>
     { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.31',
       DBUSER=>'url_svc', DBPASSWD=>'image1002' },
@@ -40,7 +40,7 @@ BEGIN {
       DBNAME_SLAVE  => 'database=url_test;host=10.10.208.31',
       DBUSER=>'url_test', DBPASSWD=>'image1001' },
 
-  '110.45.208.69:80' =>
+  '110.45.208.69' =>
     { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.77',
       DBUSER=>'url_svc', DBPASSWD=>'image1002' },
