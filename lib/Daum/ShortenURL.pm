@@ -1,6 +1,4 @@
 package Daum::ShortenURL;
-# using SOCKS proxy module for LWP::UserAgent;
-use lib '/home/aragorn/perl/lib/perl5/site_perl';
 use strict;
 use warnings;
 use utf8;
@@ -9,6 +7,7 @@ use LWP::UserAgent;
 use Encode qw/encode decode/;
 use DBI;
 
+use vars qw(%CONFIG %CONFIG_ALL @DEBUG);
 our $VERSION = '0.1';
 our @fields_url_trans =
   qw(url_id shorten_url original_url original_title 
@@ -17,11 +16,48 @@ our @fields_url_trans =
      has_no_info has_original_url has_title has_image
      is_dead is_unreachable
      created_on updated_on );
+our ($DBH_SLAVE, $DBH_MASTER);
 
-my (%OPT, $DBH_SLAVE, $DBH_MASTER, @DEBUG);
-%OPT = (
+BEGIN {
+
+  %CONFIG_ALL = (
   example  => 'none',
-);
+  '110.45.208.13:80' =>
+    { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
+      DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.21',
+      DBUSER=>'url_svc', DBPASSWD=>'image1002' },
+  '110.45.208.13:8080' =>
+    { DBNAME_MASTER => 'database=url_test;host=10.10.208.88',
+      DBNAME_SLAVE  => 'database=url_test;host=10.10.208.21',
+      DBUSER=>'url_test', DBPASSWD=>'image1001' },
+
+  '110.45.208.14:80' =>
+    { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
+      DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.31',
+      DBUSER=>'url_svc', DBPASSWD=>'image1002' },
+  '110.45.208.14:8080' =>
+    { DBNAME_MASTER => 'database=url_test;host=10.10.208.88',
+      DBNAME_SLAVE  => 'database=url_test;host=10.10.208.31',
+      DBUSER=>'url_test', DBPASSWD=>'image1001' },
+
+  '110.45.208.69:80' =>
+    { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
+      DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.77',
+      DBUSER=>'url_svc', DBPASSWD=>'image1002' },
+  '110.45.208.69:8080' =>
+    { DBNAME_MASTER => 'database=url_test;host=10.10.208.88',
+      DBNAME_SLAVE  => 'database=url_test;host=10.10.208.77',
+      DBUSER=>'url_test', DBPASSWD=>'image1001' },
+  default =>
+    { DBNAME_MASTER => 'database=preview;host=10.31.125.236',
+      DBNAME_SLAVE  => 'database=preview;host=10.31.125.236',
+      DBUSER=>'aragorn', DBPASSWD=>'image' },
+  );
+
+  my $http_host = $ENV{HTTP_HOST} || 'default';
+  if ( exists $CONFIG_ALL{$http_host} ) { %CONFIG = %{$CONFIG_ALL{$http_host}}; }
+  else                                  { %CONFIG = %{$CONFIG_ALL{default}}; }
+}
 
 sub new {
   my ($class, %arg) = @_;
@@ -400,7 +436,7 @@ sub fetch_webpage {
     $ua = LWP::UserAgent->new;
     $ua->agent("Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) "
               ."AppleWebKit/533.4 (KHTML, like Gecko) Chrome/5.0.375.125 Safari/533.4");
-    $ua->proxy([qw(http https)] => 'socks://127.0.0.1:1080');
+    #$ua->proxy([qw(http https)] => 'socks://127.0.0.1:1080');
   }
 
   my $req = HTTP::Request->new(GET => $url);
@@ -414,9 +450,9 @@ sub fetch_webpage {
 }
 
 sub connect_slave_db {
-  my $dbname = 'database=preview;host=10.31.125.236';
-  my $dbuser = 'aragorn';
-  my $dbpasswd = 'image';
+  my $dbname = $CONFIG{DBNAME_SLAVE};
+  my $dbuser = $CONFIG{DBUSER};
+  my $dbpasswd = $CONFIG{DBPASSWD};
   my $dbh = DBI->connect("dbi:mysql:$dbname", $dbuser, $dbpasswd);
   $dbh->do(qq(set names utf8));
 
@@ -424,9 +460,9 @@ sub connect_slave_db {
 }
 
 sub connect_master_db {
-  my $dbname = 'database=preview;host=10.31.125.236';
-  my $dbuser = 'aragorn';
-  my $dbpasswd = 'image';
+  my $dbname = $CONFIG{DBNAME_MASTER};
+  my $dbuser = $CONFIG{DBUSER};
+  my $dbpasswd = $CONFIG{DBPASSWD};
   my $dbh = DBI->connect("dbi:mysql:$dbname", $dbuser, $dbpasswd);
   $dbh->do(qq(set names utf8));
 
