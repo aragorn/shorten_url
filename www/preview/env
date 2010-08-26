@@ -18,7 +18,7 @@ foreach ( sort keys %ENV )
 }
 print "</table>";
 
-print h2("CGI::http('http_host')=".CGI::http('http-host'));
+print h2("CGI::http('http_host')=".%ENV{HTTP_HOST});
 my %HTTP = CGI::http();
 print "<table>";
 foreach ( sort keys %HTTP )
