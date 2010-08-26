@@ -4,10 +4,12 @@ use strict;
 use CGI qw(:standard);
 
 my $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+#my $server_name = join(":", $q->server_name, $q->virtual_port || $q->server_port);
+my $server_name = join(":", $q->server_name, $q->virtual_port);
 print $q->header(-charset=>'utf-8', -type=>'text/html');
 
-print $q->start_html(-lang=>'ko_KR', -encoding=>'utf-8', -title=>'hello, world!'),
-  h1('Test Website'),
+print $q->start_html(-lang=>'ko_KR', -encoding=>'utf-8', -title=>$server_name),
+  h1($server_name),
   h2('SNS 컬렉션 데모'),
     h3('<a href="debug/search?q=아이폰4">', '통합검색 테스트', '</a>'),
     h3('<a href="debug/sns?q=아이폰4">', 'SNS컬렉션 테스트', '</a>'),
