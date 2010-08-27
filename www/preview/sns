@@ -10,6 +10,7 @@ use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use LWP::Simple qw(!head);
 use XML::Simple;
+$XML::Simple::PREFERRED_PARSER="XML::Parser";
 use Unicode::String qw(utf8);
 use Data::Dumper;
 #use Daum::ShortenURL;
