@@ -16,17 +16,18 @@ use Data::Dumper;
 #use Daum::ShortenURL;
 
 our @DEBUG;
-my $cp949 = new Unicode::Map("cp949");
+#my $cp949 = new Unicode::Map("cp949");
 
 #my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
-my $base_url = "http://10.31.125.234:7777/front/search.py?q=%s&p=%s";
+my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
+my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=200&q=%s&p=%s";
 my $parser  = new XML::Simple;
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $query   = param('q') || ""; utf8::decode($query);
 my $page    = param('p') || "1";
 my $where   = param('w') || "tot";
 
-my $query_cp949   = $cp949->from_unicode(utf8($query));
+#my $query_cp949   = $cp949->from_unicode(utf8($query));
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
 #print $q->header(-charset=>'cp949', -type=>'text/html');
@@ -41,41 +42,125 @@ print "query($decoded) is utf8" if utf8::is_utf8($decoded);
 print "query($decoded) is not utf8" unless utf8::is_utf8($decoded);
 =cut
 
-my $search_url = sprintf($base_url, escape($query_cp949), $page);
-$search_url = sprintf($base_url, escape($query), $page) unless utf8::is_utf8($query);
+#my $search_url = sprintf($base_url, escape($query_cp949), $page);
+my $search_url = sprintf($base_url, escape($query), $page); # unless utf8::is_utf8($query);
 my $xml = LWP::Simple::get($search_url);
 my $result = $parser->XMLin($xml, noattr=>1, suppressempty=>1);
 
-my $total_count = $result->{'m'}->{'c'};
-my $page_count  = $result->{'m'}->{'pc'};
-my @list     = @{ $result->{'ds'}->{'data'} };
+my ($total_count, $page_count, @list) = parse_xml_result($result);
+
+print <<END;
+<style type="text/css">
+#snsColl .collTitle {overflow:visible;margin-bottom:3px;}
+#snsColl #snsList {overflow-y:auto;overflow-x:hidden;height:250px;margin-top:10px;
+    scrollbar-face-color:#FEFEFE;
+    scrollbar-shadow-color:#fff;
+    scrollbar-highlight-color:#fff;
+    scrollbar-3dlight-color:#DEDEDE;
+    scrollbar-darkshadow-color:#dedede;
+    scrollbar-track-color:#F7F7F7;
+    scrollbar-arrow-color:#929292;
+}
+#snsColl li {display:block;float:left;width:692px;}
+#snsColl li.write {height:0px;margin-bottom:0px;overflow:hidden;line-height:0px;font-size:0px;}
+#snsColl li .divAniBox {width:100%;padding-bottom:18px;line-height:16px;}
+#snsColl li .thumb {margin-right:7px;}
+#snsColl li .thumb img {border:1px solid #ECECEC;}
+#snsColl li .desc {padding-top:2px;line-height:18px;}
+#snsColl li .info {padding-top:2px;font:12px/13px AppleGothic,gulim,sans-serif;}
+
+/*
+#snsColl li .commentBox {float:left;width:635px;background:url("http://imgsrc.search.daum-img.net/search_all/2009/image/bg_realsearch.gif") repeat-y -630px 0px;}
+#snsColl li .commentBody {padding:0px 15px 0px 15px;background:url("http://imgsrc.search.daum-img.net/search_all/2009/image/bg_realsearch.gif") no-repeat 0px 0px;}
+#snsColl li .commentFoot {width:100%;height:10px;font-size:0px;line-height:0px;background:url("http://imgsrc.search.daum-img.net/search_all/2009/image/bg_realsearch.gif") no-repeat -1260px bottom;}
+*/
+
+#snsColl li .commentBox {float:left;width:635px; }
+#snsColl li .commentBody {padding:0px 15px 0px 15px; }
+#snsColl li .commentFoot {width:100%;height:10px;font-size:0px;line-height:0px; }
+
+#snsColl li .commentBody .desc {padding-top:8px;line-height:18px;}
+* html #snsColl li .commentBody .desc {padding-top:9px;}
+#snsColl li .commentBody .info {padding-top:2px;font:12px/13px AppleGothic,gulim,sans-serif;}
+#snsColl li .textBox {padding-top:3px;}
+#snsColl li .getTime {color:#6671FF;font-size:12px;text-decoration: none;}
+#snsColl li a.getTime:hover {text-decoration: underline;}
+#snsColl li a.getTime:hover span {text-decoration: underline;}
+#snsColl li .nick {color:#7A7A7A;}
+#snsColl li .source {color:#7A7A7A;}
+#snsColl li .vline {font-size:11px;}
+
+#snsColl li .icoYozm {padding-left:14px;padding-bottom:1px;background: url("http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_svico.gif") no-repeat -2px 0px;}
+#snsColl li .icoMetwo {padding-left:16px;background: url("http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_svico.gif") no-repeat 0px -34px;}
+#snsColl li .icoTwitter {padding-left:13px;padding-top:1px;background: url("http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_svico.gif") no-repeat -2px -66px;}
+
+#snsColl #btnRealTimeRun1, #snsColl #btnRealTimeRun2 {text-decoration: none;font:12px dotum;letter-spacing: -1px}
+#snsColl #btnRealTimeRun1:hover, #snsColl #btnRealTimeRun2:hover {text-decoration: underline;}
+#snsColl .hide {display:none !important;}
+
+#snsColl .relationTip {margin-top:21px;padding-top:14px;border-top:1px solid #ECECEC;}
+* html #snsColl .relationTip {padding-top:15px;}
+#snsColl .relationTip p b {color:#0307C3;}
+#snsColl #statusRealTimeRun {margin-left:11px;font-weight:normal;font-family: dotum;letter-spacing: -1px}
+
+#clusterResultUL .cpLink {margin-top:2px;} 
+#clusterResultUL span.cluster.fst {margin-top:7px;} 
+#clusterResultUL .cluster {
+margin-top:6px;padding-left:13px;
+background:url("http://imgsrc.search.daum-img.net/search_all/2009/icon/cb_search_icon_2009.gif") no-repeat 1px -860px}
+#clusterResultUL .cluster_more {
+margin-top:6px;display:inline-block;color:#6671FF;font-size:12px;margin-left:13px;}
+/*#clusterResultUL .mlink {
+width:auto;margin-left:0;font-size:12px;font-family:AppleGothic,"새굴림","굴림",gulim,sans-serif;vertical-align:0;}*/
+#clusterResultUL.uccUl li {margin-top:18px;} 
+#clusterResultUL.uccUl li.fst {margin-top:0;} 
+#newsColl .mlink {
+width:auto;margin-left:0;font-size:12px;
+font-family:AppleGothic,"새굴림","굴림",gulim,sans-serif;
+padding-top:0px;vertical-align:0;
+letter-spacing:0;
+background:transparent url(http://imgsrc.search.daum-img.net/search_all/2009/icon/search_icon_2009.gif) no-repeat scroll 62px -2012px;}
+#newsColl ul.uccUl dd span.tit.mainTit {float:left;margin-bottom:3px;}
+#newsColl .mlink.viewLink {background-position:30px -2012px; padding:0px 21px 0 0;text-decoration:none;}
+#newsColl .mlink:visited {text-decoration:none !important;}
+#newsColl .mlink:hover {text-decoration:underline !important;}
+
+</style>
+END
 
 if ($where eq "tot")
 {
 print <<END;
-<div id="realTimeColl">
+<div id="snsColl">
  <div class="collTitle">
- <h2 class="fL">소셜네트워크 검색</h2>
+ <h2 class="fL">소셜웹 검색</h2>
+ $search_url
  </div>
  <div class="collTot" style="height: inherit;">
-  <ul id="realTimeList" style="height: inherit;">
+  <ul id="snsList" style="height: inherit;">
 END
 } else {
 print <<END;
 <div id="snsColl">
  <div class="collTitle">
- <h2 class="hide">소셜네트워크 검색</h2>
+ <h2 class="hide">소셜웹 검색</h2>
+ $search_url
  </div>
  <div class="collTot" style="height: inherit;">
   <ul id="snsList">
 END
 }
 
-foreach my $doc ( @list )
+foreach my $doc ( map(+( $list[$_] ), 0..3) )
 {
-  my ($title,$url,$sns_userid,$channel_url,$image_url,$writedttm,$rich_score)
-   = map { $doc->{$_} } qw(title url sns_userid channel_url image_url writedttm rich_score);
+  my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
+   = map { $doc->{$_} } qw(docid edocid content url image_url channel_url writedttm sns_name);
   my $twitter_link = "트위터 원문보기";
+  $image_url = $image_url_default unless $image_url;
+  my @clusters;
+  @clusters = @{ $doc->{clusters}->{data} }
+    if defined $doc->{clusters} and defined $doc->{clusters}->{data}
+       and ref $doc->{clusters}->{data} eq "ARRAY";
   print <<END;
 <!--BEGIN-->
 <li>
@@ -85,7 +170,7 @@ foreach my $doc ( @list )
   </div>
   <div class="commentBox">
     <div class="commentBody">
-      <p class="base desc">$title</p>
+      <p class="base desc">$content</p>
       <p class="info">
         <a href="$channel_url" target="_blank" class="getTime">
           <span id="getRealIndexTime_0" class="getTime">
@@ -94,13 +179,37 @@ foreach my $doc ( @list )
         </a>
         <span class="vline">|</span>
         <span class="nick">
-          <a href="$channel_url" target="_blank" class="g_tit">$sns_userid</a>
+          <a href="$channel_url" target="_blank" class="g_tit">$sns_name</a>
         </span>
         <span class="vline">|</span>
         <span class="source icoTwitter">
           <a href="$channel_url" target="_blank" class="g_tit">$twitter_link</a>
         </span>
       </p>
+END
+
+  print qq(<ul class="cluster">\n) if @clusters > 0;
+  foreach my $clustered ( @clusters )
+  {
+    my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
+     = map { $clustered->{$_} } qw(docid edocid content url image_url channel_url writedttm sns_name);
+    print <<END;
+      <li>$content
+        <a href="$channel_url" target="_blank" class="getTime">
+          <span id="getRealIndexTime_0" class="getTime">
+          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
+          </span>
+        </a>
+        <span class="vline">|</span>
+        <span class="nick">
+          <a href="$channel_url" target="_blank" class="g_tit">$sns_name</a>
+        </span>
+      </li>
+END
+  }
+  print qq(</ul>\n) if @clusters > 0;
+
+  print <<END
     </div>
     <div class="commentFoot"></div>
   </div>
@@ -118,7 +227,7 @@ if ($where eq "tot")
   </ul>
  </div>
  <div class="moreArea">
-   <a href="?w=dir&m=sns&q=$query_escaped">소셜네트워크 더보기</a>
+   <a href="?w=dir&m=sns&q=$query_escaped">소셜웹 더보기</a>
  </div>
 </div>
 <!-- end SNS Coll -->
@@ -152,4 +261,23 @@ print <<END;
 END
 
 exit;
+
+sub parse_xml_result
+{
+  my $result = shift;
+  my $total_count = 0;
+  my $page_count = 0;
+  my @list = ();
+  if ( defined $result->{m} )
+  {
+    $total_count = $result->{m}->{c};
+    $page_count  = $result->{m}->{pc};
+  }
+  if ( defined $result->{ds} )
+  {
+    @list = @{ $result->{ds}->{data} };
+  }
+
+  return ($total_count, $page_count, @list);
+}
 

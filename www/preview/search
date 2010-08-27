@@ -55,7 +55,7 @@ sub html_sns_collection {
   my $search_url = sprintf($base_url, escape($query),$page);
   my $html = LWP::Simple::get($search_url);
   utf8::decode($html);
-  #return $html;
+  return $html;
 
   $h = <<END;
 <!-- SNS Coll -->
