@@ -3,20 +3,22 @@
 use lib '/home/aragorn/preview/lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
-my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+my ($t1, $t01, $t2, $t02) = (new Benchmark, [gettimeofday]);
 use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use LWP::Simple qw(!head);
 use XML::Simple;
-use Unicode::Map;
 use Unicode::String qw(utf8);
 use Data::Dumper;
 #use Daum::ShortenURL;
 
 our @DEBUG;
+binmode STDOUT, ":encoding(UTF-8)";
 #my $cp949 = new Unicode::Map("cp949");
+($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @DEBUG, "elapsed time 1=".tv_interval($t01, $t02)."secs";
 
 #my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
 my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
@@ -42,10 +44,16 @@ print "query($decoded) is utf8" if utf8::is_utf8($decoded);
 print "query($decoded) is not utf8" unless utf8::is_utf8($decoded);
 =cut
 
+($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @DEBUG, "elapsed time 2=".tv_interval($t01, $t02)."secs";
 #my $search_url = sprintf($base_url, escape($query_cp949), $page);
 my $search_url = sprintf($base_url, escape($query), $page); # unless utf8::is_utf8($query);
 my $xml = LWP::Simple::get($search_url);
+($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @DEBUG, "elapsed time 3=".tv_interval($t01, $t02)."secs";
 my $result = $parser->XMLin($xml, noattr=>1, suppressempty=>1);
+($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @DEBUG, "elapsed time 4=".tv_interval($t01, $t02)."secs";
 
 my ($total_count, $page_count, @list) = parse_xml_result($result);
 
@@ -154,7 +162,8 @@ END
 foreach my $doc ( map(+( $list[$_] ), 0..3) )
 {
   my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
-   = map { $doc->{$_} } qw(docid edocid content url image_url channel_url writedttm sns_name);
+   = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
+       qw(docid edocid content url image_url channel_url writedttm sns_name);
   my $twitter_link = "트위터 원문보기";
   $image_url = $image_url_default unless $image_url;
   my @clusters;
@@ -192,7 +201,8 @@ END
   foreach my $clustered ( @clusters )
   {
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
-     = map { $clustered->{$_} } qw(docid edocid content url image_url channel_url writedttm sns_name);
+     = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
+       qw(docid edocid content url image_url channel_url writedttm sns_name);
     print <<END;
       <li>$content
         <a href="$channel_url" target="_blank" class="getTime">
@@ -246,14 +256,14 @@ END
 
 #print pre(Dumper($result));
 
-my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+($t2, $t02) = (new Benchmark, [gettimeofday]);
 print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
 print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
 if ($q->self_url =~ m/debug/) {
   foreach ( @DEBUG ) { print p({class=>'debug'}, $_); }
+  my $reload_link = $q->unescape($q->script_name ."?". $q->query_string); utf8::decode($reload_link);
   print p({class=>'debug'}, "reload ",
-          a({href=>"?".$q->query_string},
-            $q->unescape($q->script_name ."?". $q->query_string)));
+          a({href=>"?".$q->query_string}, $reload_link));
 }
 print <<END;
 <div id="line"></div>
