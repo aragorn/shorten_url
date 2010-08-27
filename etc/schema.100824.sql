@@ -67,7 +67,7 @@ CREATE TABLE `url_translation` (
   KEY `idx_created_on` USING BTREE (`created_on`),
   KEY `idx_updated_on` USING BTREE (`updated_on`),
   KEY `idx_website` USING HASH (`website`)
-) ENGINE=MyISAM AUTO_INCREMENT=876335 DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 SET character_set_client = @saved_cs_client;
 
 --
