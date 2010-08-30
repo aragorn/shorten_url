@@ -13,8 +13,10 @@ use LWP::Simple qw(!head);
 use Unicode::String qw(utf8);
 use Daum::FederatedSearch;
 
-our @DEBUG;
+our @BENCHMARK;
 binmode STDOUT, ":encoding(UTF-8)";
+my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @BENCHMARK, p("before new CGI:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
 our $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 
@@ -29,6 +31,7 @@ if ($fsearch->fetch_search_result($q)) {
   print $fsearch->html_head;
   print $fsearch->html_body;
 
+  map { print $_, "\n"; } @BENCHMARK;
   if (self_url =~ m/debug/) {
     map { print $_, "\n"; } $fsearch->debug;
 
