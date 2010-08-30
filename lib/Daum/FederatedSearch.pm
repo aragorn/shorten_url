@@ -8,6 +8,8 @@ use LWP::UserAgent;
 use LWP::Simple qw(!head);
 use Unicode::String qw(utf8);
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
 
 use vars qw(%CONFIG %CONFIG_ALL @DEBUG);
 our $VERSION = '0.1';
@@ -20,7 +22,6 @@ our %collection_handler = (
   #realtimeColl => undef,
 );
 our @added_tab_list = ();
-our @added_collections = ();
 
 BEGIN {
   ;
@@ -33,6 +34,8 @@ sub new {
   bless {
     none => 0,
     search_url => url(-full=>1),
+    benchmark => $arg{benchmark},
+    gettimeofday => $arg{gettimeofday},
   }, $class;
 }
 
@@ -73,7 +76,7 @@ sub defaultColl {
   $_ = shift;
   s#http://search.daum.net/search#$search_url#go;
   s#\("autocomplete","off"\);</script></span>#\("autocomplete","off"\);</script>#go; # fixed html error
-  return $_ . '-' x 80 ."\n" if self_url =~ m/debug/;
+  return $_ . '-' x 80 ."\n" if self_url =~ m/debug/o;
   return $_;
 }
 
@@ -87,7 +90,6 @@ sub realTimeColl {
 sub searchTab {
   my $self = shift;
   my $html = shift;
-  #my (undef,$ul,undef) = split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/, $html, 3);
   my @tab_html;
   my $query = param('q') || "";
   my $utf8_query = utf8_string($query);
@@ -116,7 +118,7 @@ sub searchTab {
    \s+ class="([\w\s]+)">
    <span \s class="[\w\s]+">(\w+)</span>
   }iox;
-  while ( $html =~ m{$tab_pattern1}g ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
+  while ( $html =~ m{$tab_pattern1}og ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
 =cut
 
 =rem
@@ -130,18 +132,18 @@ class="oLink">
    \s+ onmouseout="[^"]*"
 > <span>(\w+)</span>
   }iox;
-  while ( $html =~ m{$tab_pattern1}g ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
+  while ( $html =~ m{$tab_pattern1}og ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
 =cut
 =rem
   my ($prev,$ul,$next) = #map { s/</&lt;/go; s/>/&gt;/go; $_; }
-    split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/, $html, 3);
-    #split(/<ul|<script/, $html, 3);
+    split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/o, $html, 3);
+    #split(/<ul|<script/o, $html, 3);
 push @DEBUG, p("prev=".($prev)), "-"x80;
 push @DEBUG, p("ul="  .($ul)),   "-"x80;
 push @DEBUG, p("next=".($next)), "-"x80;
 
   my $separator = qr{<\/li>\s*<li(?:\s+id="\w+")?>|<li(?:\s+id="\w+")?>|<\/li>}iox;
-  my @items = split(/($separator)/, $ul);
+  my @items = split(/($separator)/o, $ul);
 map { push @DEBUG, hr, div("li=".($_)); }
 map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
 =cut
@@ -172,7 +174,7 @@ sub html_head {
   my $html_head = shift;
   return $self->{html_head} unless $html_head;
 
-  my @html_head = split(/\r?\n/, $html_head);
+  my @html_head = split(/\r?\n/o, $html_head);
   foreach ( @html_head ) {
     # charset을 euc-kr에서 utf-8로 변경한다. 실제 문자열의 charset은 $res->decoded_content
     # 를 사용하므로, 이미 utf-8로 변경된 상태이다.
@@ -183,7 +185,7 @@ sub html_head {
     # width,height=0 크기의 iframe 추가하는 javascript code를 삭제한다. 포함되어 있어도
     # 큰 문제는 없으나, 상이한 domain의 javascript code를 호출하여 실행에 오류가 발생한다.
     # 해당 javascript code는 query log 기록을 위한 페이지를 호출하는 것으로 보인다.
-    if ( $_ =~ m/document.writeln/ ) { $_ = ""; }
+    if ( $_ =~ m/document.writeln/o ) { $_ = ""; }
   }
   # Shorten URL 관련 코드를 추가한다.
   push @html_head, q(<link rel="stylesheet" type="text/css" href="/cluetip/jquery.cluetip.css" />);
@@ -252,26 +254,40 @@ sub html_body {
 
   my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|"
                             ."<!-- end 상세검색 -->|<!-- 가상 키보드 DIV START -->";
-  my @htmls = map { s/^\s*|\s*$//g; $_; } split(/$collection_separator/, $html_body);
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("before html split in html_body:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
+  my @htmls = map { s/^\s*|\s*$//og; $_; } split(/$collection_separator/o, $html_body);
   my @collections;
 
   my $first_search_coll = 0;
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("before loop in html_body:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
   foreach ( @htmls ) {
     my $name = "unknown";
     my $div_id = "unknown";
     m/<!--\s*([\w\s]{1,50})\s*-->/io and $name = $1;
     m/<div id="(\w+Coll|netizen_choose|detailSearchN|uccBarBotN|daumHead)"/io and $div_id = $1;
 
-    $first_search_coll ++ if $div_id =~ m/Coll$/;
+    $first_search_coll ++ if $div_id =~ m/Coll$/o;
 
-    if ($div_id =~ m/Coll$/
+    if ($div_id =~ m/Coll$/o
         and $first_search_coll > 1
         and $selected_tab)
     { # we have an user-defined tab and it is selected now.
       # skip other ...Coll htmls.
       ;
     }
-    elsif ($div_id =~ m/Coll$/
+    elsif ($div_id =~ m/Coll$/o
         and $first_search_coll == 1
         and $selected_tab
         and exists $collection_handler{$selected_coll}
@@ -293,6 +309,13 @@ sub html_body {
     {
       $_ = $collection_handler{defaultColl}->($self,$_);
       push @collections, {id=>$div_id, name=>$name, html=>$_};
+=rem
+      push @DEBUG, p("default name=$name, div_id=$div_id");
+      my $escaped_html = $_;
+      $escaped_html =~ s/</&lt;/og;
+      $escaped_html =~ s/>/&gt;/og;
+      push @DEBUG, div("html=".$escaped_html) if $div_id eq 'netizen_choose';
+=cut
     }
 
     my $handler = ref $collection_handler{$div_id};
@@ -314,7 +337,24 @@ sub fetch_search_result {
   my $self = shift;
   my $q = shift;
 
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("before request_search_result:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
+
   my $res = request_search_result($q);
+
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("after request_search_result:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
+
   unless ($res->is_success)
   {
     $self->status_line($res->status_line);
@@ -322,10 +362,33 @@ sub fetch_search_result {
   }
 
   my ($html_head, $html_head_close, $html_body, $html_body_close, $html_close)
-    = split(/(<\/head>|<\/body>)/, $res->decoded_content);
+    = split(/(<\/head>|<\/body>)/o, $res->decoded_content);
 
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("before setting html_head:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
   $self->html_head($html_head.$html_head_close);
+
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("after setting html_head:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
   $self->html_body($html_body);
+
+  if ($self->{benchmark} and $self->{gettimeofday})
+  {
+    my($t2, $t02) = (new Benchmark, [gettimeofday]);
+    push @DEBUG, p("after setting html_body:",
+                   tv_interval($self->{gettimeofday}, $t02),
+                   timestr(timediff($t2, $self->{benchmark})));
+  }
 
   push @DEBUG, p("base=", $res->base);
   foreach ($res->headers->header_field_names) {
@@ -391,9 +454,9 @@ sub match_url {
   eval {
      local $SIG{'__WARN__'} = sub { die $_[0]; };
      #no warnings 'all';
-     while ( $string =~ m{$url_pattern}g ) { push @matched, $1; }
+     while ( $string =~ m{$url_pattern}og ) { push @matched, $1; }
   };
-  #if ( $@ =~ m/^Malformed UTF-8 character/ ) { print "ERROR: $_"; }
+  #if ( $@ =~ m/^Malformed UTF-8 character/o ) { print "ERROR: $_"; }
   if ( $@ ) { print "ERROR: $@\n-->$_"; find_error_token($_); }
   #foreach my $m ( @matched ) { print "m: $m\n"; }
   return @matched;
@@ -404,14 +467,14 @@ sub find_error_token {
   chomp $string;
   #print "find_error_token: $string\n";
   #print "utf8::decode: ". utf8::decode($string) ."\n";
-  my @tokens = split(/(\s)/, $string);
+  my @tokens = split(/(\s)/o, $string);
 
   foreach ( @tokens )
   {
     #print "token: $_\n";
     eval {
       local $SIG{'__WARN__'} = sub { die $_[0]; };
-      m/$url_pattern/g;
+      m/$url_pattern/og;
     };
     next unless $@;
     print "not utf8::valid: $_\n" unless utf8::valid($_);
@@ -428,13 +491,14 @@ sub is_real_search_collection
   return 1 if $id =~ m/Coll$/o;
   return 1 if $id eq 1;
 }
+
 sub utf8_string {
   my $str = shift;
   #my $charset = shift;
   utf8::decode($str);
   return $str if utf8::is_utf8($str);
 =rem
-  if ($charset =~ m/utf-8/ig)
+  if ($charset =~ m/utf-8/iog)
   {
     push @DEBUG, "regard string as utf8";
     #my $utf8 = Encode::decode("utf-8", $str);
