@@ -39,10 +39,12 @@ if (not exists $row->{url_id} and $fetch and $save) {
 
 my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_url);
 $title = "제목이 없습니다" unless $title;
+my $highlighted_url = highlighted_url($original_url);
 
 print <<END;
-<p class="title">$title</p>
-<p class="url">$original_url</p>
+<p class="title"><a href="$original_url">$title</a></p>
+<p class="url highlighted">$highlighted_url</p>
+<p class="url hidden">$original_url</p>
 END
 
 my ($t2, $t02) = (new Benchmark, [gettimeofday]);
@@ -56,9 +58,47 @@ if ($q->self_url =~ m/debug/) {
   foreach ( @DEBUG ) { print p({class=>'debug'}, $_),"\n"; }
   foreach ( $shorten->debug ) { print p({class=>'debug shorten'}, $_),"\n"; }
   print p({class=>'debug'}, "reload ",
-          a({href=>"?".$q->query_string},
+          a({href=>$q->script_name."?".$q->query_string},
             $q->unescape($q->script_name ."?". $q->query_string))),"\n";
 }
 
 exit;
+
+sub highlighted_url 
+{
+  $_ = shift;
+  my $shorten = $_;
+  m! ^ ( https?:// )
+      ( [\w\.]* / )
+      ( (?:[^\/\?]* /)* )
+      ( [^\/\?]+ | [^\/\?]+ / )
+      #( [^\/\?]* )
+      ( \?.* )? $
+  !iox and do {
+    my @u = (0,$1,$2,$3,$4,$5);
+    $u[2] = substr($2, 0, 15) . "../" if length $2 > 17; # domain
+    $u[3] = substr($3, 0,  7) . "../" if length $3 >  9; # path
+    $u[4] = substr($4, 0, 38) . ".." if length $4 > 40;  # page
+    $u[5] = substr($5, 0, 10) . ".." if length $5 > 12;  # query
+    #$shorten = join("#", $1, $2, $3, $4, $5);
+    $shorten = join("", $1, $2, $3, $4, $5);
+    $shorten = join("", $1, $2, $3, $4, $u[5]) if length $shorten > 70;
+    $shorten = join("", $1, $2, $u[3], $4, $u[5]) if length $shorten > 70;
+    $shorten = join("", $u[1], $u[2], $u[3], $u[4], $u[5]) if length $shorten > 80;
+    $shorten = join("", $u[1], $u[2], $u[3], $u[4], $u[5] ? "?.." : "") if length $shorten > 80;
+    $shorten = join("", $u[1], $u[2], $u[3] ? "../" : "", $u[4], $u[5] ? "?.." : "") if length $shorten > 80;
+    $shorten = join("", $u[1], $u[2], ($u[3] || $u[4] || $u[5] ) ? "..." : "") if length $shorten > 80;
+=rem
+    $shorten = join("",
+      #span({class=>'dimmed'}, $1),
+      $2,
+      span({class=>'dimmed'}, $3),
+      $4,
+      span({class=>'dimmed'}, $5),
+    );
+=cut
+  };
+  return $shorten;
+}
+
 
