@@ -143,55 +143,6 @@ END
 
 ##############################################################################
 
-sub twitter_link {
-  $_ = shift;
-=rem
-=cut
-  s{ ( ^ | \s | [^A-Za-z0-9] )
-     \@
-     ([A-Za-z0-9_]+)
-   } ! qq($1\@<a href="http://twitter.com/$2" target="_blank" class="g_tit twitter">$2</a>) !isogxe;
-  s{ ( ^ | \s | [^A-Za-z0-9] )
-     \#
-     ([A-Za-z0-9_\w]+)
-   } ! qq($1<a href="http://twitter.com/search?q=)
-       .escape("#$2").
-       qq(" target="_blank" class="g_tit twitter">#$2</a>) !isogxe;
-  $_;
-}
-
-sub realtime_tab_list {
-  my $html = shift;
-  my (undef,@item) = split(/<\/li>\s*<li>|<li>|<\/li>/, $html);
-  pop @item;
-
-  my $param_autolink = param('autolink') || "";
-  foreach ( @item ) {
-    my ($class,$source) = ("","");
-    m!<p\sclass="info">\s*<a\shref="([^"]+)"!isogx and $source = $1;
-    $class = "twitter" if index($source, "twitter.com")> 0;
-    
-    s{ ( \s | (?<!url)\( | \< | : | ^ | \w | [\x21\x23-\x26\x28-\x7e] ) # $1
-       (                            # $2
-         ( http:// | https:// )     # $3
-         \w+ (\.\w+)+ (/ [^\s\)\>\<]{1,200} )?
-       ) (?=\s|\)|\>|\<|$)             # not $4
-     } ! url_link($1, $2, $class, $source) !iogxe;
-
-    s{ ( <p\sclass="base\sdesc"> )     # $1
-       ( .{0,500} )                   # $2
-       ( </p>\s* )                    # $3
-       (?=<p\sclass="info">)       # not $4
-     }
-     ! $1 . twitter_link($2) . $3 !isogxe
-     if $class eq "twitter";
-  }
-=rem
-=cut
-
-  return join("\n", map { "<!--BEGIN--><li>$_</li><!--END-->" } @item);
-}
-
 sub realTimeColl {
   my $self = shift;
   my $html = shift;
@@ -209,10 +160,6 @@ sub realTimeColl {
        (?=</p> \s* <p\sclass="info">)  # not $2
      }
     ! make_autolink($1,$class,$source) !isogxe;
-=rem
-    ! "BEGIN(".$1.")END" !isogxe;
-=cut
-    #s{$Daum::FederatedSearch::url_pattern} !url_link($1,$class,$source)!ioxge;
   }
   my $modified = join("<!-- XYZ -->", @items);
 
@@ -224,12 +171,14 @@ sub make_autolink {
   my $class  = shift || "";
   my $source = shift || "";
 
+  # @username link
   s{ ( ^ | \s | [^A-Za-z0-9] )     # $1
      \@                           
      ([A-Za-z0-9_]+)               # $2
    } ! qq($1\@<a href="http://twitter.com/$2" target="_blank" class="g_tit twitter">$2</a>) !isogxe
    if $class eq "twitter";
 
+  # #keyword link
   s{ ( ^ | \s | [^A-Za-z0-9] )     # $1
      \#
      ([A-Za-z0-9_\w]+ | \w+_ )             # $2
