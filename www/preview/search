@@ -13,7 +13,7 @@ use LWP::Simple qw(!head);
 use Unicode::String qw(utf8);
 use Daum::FederatedSearch;
 
-our @BENCHMARK;
+my @BENCHMARK = ();
 binmode STDOUT, ":encoding(UTF-8)";
 my ($t2, $t02) = (new Benchmark, [gettimeofday]);
 push @BENCHMARK, p("before new CGI:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
