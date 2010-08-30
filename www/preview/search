@@ -22,6 +22,7 @@ print $q->header(-charset=>'utf-8', -type=>'text/html');
 
 my $fsearch = new Daum::FederatedSearch(query=>$q);
 $fsearch->handler('realTimeColl', \&realTimeColl);
+$fsearch->handler('snsColl', \&snsColl);
 $fsearch->add_tab('sns', '소셜웹', 'w=sns&q=%s&enc=utf8&nul_search=btn');
 
 if ($fsearch->fetch_search_result($q)) {
@@ -42,7 +43,9 @@ if ($fsearch->fetch_search_result($q)) {
 
 exit;
 ##############################################################################
-sub html_sns_collection {
+
+sub snsColl {
+  my $self = shift;
   my $h = "";
   my $query = $q->param('q') || "iphone4";
   my $query_escaped = escape($q->param('q')) || "";
@@ -58,7 +61,7 @@ sub html_sns_collection {
 <!-- SNS Coll -->
 <div id="snsColl">
   <div class="collTitle">
-    <h2 class="fL">소셜네트워크 <span id="snsSQC_coll" style="display: none;"></span></h2>
+    <h2 class="fL">소셜웹 <span id="snsSQC_coll" style="display: none;"></span></h2>
   </div>
   <div class="collTot">
     <ul class="uccUl">
