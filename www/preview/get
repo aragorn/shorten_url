@@ -47,12 +47,13 @@ print <<END;
 <p class="url hidden">$original_url</p>
 END
 
-my ($t2, $t02) = (new Benchmark, [gettimeofday]);
-print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
-print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
-print p({class=>'debug'}, "loaded from local db")."\n" if $row->{url_id};
-print p({class=>'debug'}, "fetch=$fetch")."\n";
 if ($q->self_url =~ m/debug/) {
+  my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+  print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
+  print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
+  print p({class=>'debug'}, "loaded from local db")."\n" if $row->{url_id};
+  print p({class=>'debug'}, "fetch=$fetch")."\n";
+
   foreach my $k ( keys %{$row} )
   { next if $k =~ m/^_/; print p({class=>'debug'}, "row{$k} = ". escape($row->{$k}) ), "\n"; }
   foreach ( @DEBUG ) { print p({class=>'debug'}, $_),"\n"; }
