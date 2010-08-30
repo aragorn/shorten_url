@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use lib '../../lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01) = (new Benchmark, [gettimeofday]);
@@ -9,39 +10,31 @@ use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use LWP::UserAgent;
 use LWP::Simple qw(!head);
-#use Unicode::Map;
 use Unicode::String qw(utf8);
-sub get_fixed_head ($\$);
-sub get_fixed_body ($\$);
+use Daum::FederatedSearch;
+
+our @DEBUG;
+binmode STDOUT, ":encoding(UTF-8)";
 
 my $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
-our $self_url = $q->self_url;
-#my $euckr = new Unicode::Map('EUC-KR');
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
 
-my $res = fetch_search_result($q);
-my $debug = "<p>debug=hello, world</p>\n";
-if ($res->is_success) {
-  my ($html_head, $html_head_close, $html_body, $html_body_close, $html_close)
-    = split(/(<\/head>|<\/body>)/, $res->decoded_content);
+my $fsearch = new Daum::FederatedSearch(query=>$q);
+$fsearch->handler('realTimeColl', \&realTimeColl);
 
-  my @head = get_fixed_head($html_head, $debug);
-  print join("\n", @head, "\r\n\r\n".$html_head_close."\r\n");
+if ($fsearch->fetch_search_result($q)) {
+  print $fsearch->html_head;
+  print $fsearch->html_body;
+  map { print $_, "\n"; } $fsearch->debug;
 
-  my @body = get_fixed_body($html_body, $debug);
-  print join("\n", @body);
-
-  $debug .= p("base=", $res->base)."\n";
   my ($t2, $t02) = (new Benchmark, [gettimeofday]);
-  $debug .= p("elapsed=", tv_interval($t01, $t02))."\n";
-  $debug .= p("benchmark=", timestr(timediff($t2, $t1)))."\n";
-  foreach ($res->headers->header_field_names) {
-    $debug .= p("http $_=", $res->header($_))."\n";
-  }
-  print $debug, $html_body_close, $html_close;
+  print p("elapsed=", tv_interval($t01, $t02))."\n";
+  print p("benchmark=", timestr(timediff($t2, $t1)))."\n";
+  print $fsearch->html_body_close;
+} else {
+  print $fsearch->status_line;
 }
-else { print $res->status_line, "\n"; }
 
 exit;
 ##############################################################################
@@ -51,11 +44,11 @@ sub html_sns_collection {
   my $query_escaped = escape($q->param('q')) || "";
   my $where = $q->param('w') || "";
   my $page  = 1;
-  my $base_url = "http://10.31.125.236/debug/sns?q=%s&p=%s&w=$where";
+  my $base_url = "http://110.45.208.13:8080/debug/sns?q=%s&p=%s&w=$where";
   my $search_url = sprintf($base_url, escape($query),$page);
-  my $html = LWP::Simple::get($search_url);
-  utf8::decode($html);
-  return $html;
+  #my $html = LWP::Simple::get($search_url);
+  #utf8::decode($html);
+  #return $html;
 
   $h = <<END;
 <!-- SNS Coll -->
@@ -146,61 +139,6 @@ END
 }
 
 ##############################################################################
-sub get_fixed_head ($\$) {
-  my ($html_head, $debugref) = @_;
-  my @html_head = split(/\r?\n/, $html_head);
-  foreach ( @html_head ) {
-    if ( $_ eq q(<meta http-equiv="Content-Type" content="text/html; charset=euc-kr">) ) {
-      $$debugref .= p("source charset=euc-kr")."\n";
-      $_ = q(<meta http-equiv="Content-Type" content="text/html; charset=utf-8">);
-    }
-    if ( $_ =~ m/document.writeln/ ) { $_ = ""; }
-  }
-  push @html_head, q(<link rel="stylesheet" type="text/css" href="/cluetip/jquery.cluetip.css" />);
-  push @html_head,
-   q(<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>);
-  push @html_head, q(<script type="text/javascript" src="/js/jquery.hoverIntent.js"></script>);
-  push @html_head, q(<script type="text/javascript" src="/js/jquery.cluetip.js"></script>);
-  push @html_head, <<END; 
-<script type="text/javascript"><!--//
-\$(document).ready(function() {
-  \$('p.base.desc a.stit').cluetip({
-/*
-     width:380,
-     sticky:false,
-     showTitle:false,
-     clickThrough:true,
-     cluetipClass:'default',
-*/
-     width:380,
-     sticky:true,
-     showTitle:false,
-     clickThrough:true,
-     cluetipClass:'default',
-     closePosition:'bottom',
-     closeText: '<img src="/cluetip/images/cross.png" alt="Close" />',
-
-     xxend:0
-  });
-  
-  \$('#houdini').cluetip({
-    splitTitle: '|', // use the invoking element's title attribute to populate the clueTip...
-                     // ...and split the contents into separate divs where there is a "|"
-    showTitle: false // hide the clueTip's heading
-  });
-});
-//--></script>
-END
-  push @html_head, <<END;
-<style type="text/css">
-a.g_tit.twitter:link,
-a.g_tit.twitter:visited { color: #2276BB; color: #09c; }
-a.stit.twitter:link,
-a.stit.twitter:visited { color: #2276BB; color: #09c; }
-</style>
-END
-  return @html_head;
-}
 
 sub url_link {
   my $prev   = shift || "";
@@ -211,7 +149,7 @@ sub url_link {
   my $rel  = "get?u=". escape($url) ."&referer=". escape($source); 
   my $href = "redirect?u=". escape($url) ."&referer=". escape($source); 
 
-  if ($self_url =~ m/debug/) {
+  if (self_url =~ m/debug/) {
      $rel  = "get?u=". escape($url) ."&fetch=1&save=0&referer=". escape($source); 
   }
 
@@ -270,83 +208,13 @@ sub realtime_tab_list {
   return join("\n", map { "<!--BEGIN--><li>$_</li><!--END-->" } @item);
 }
 
-sub get_fixed_body ($\$) {
-  my ($html_body, $debugref) = @_;
-  my $html_sns_collection = html_sns_collection();
-  my $param_w = param('w') || "";
-  my $param_m = param('m') || "";
-  my $param_autolink = param('autolink') || "";
-  my $collection_separator = "<!-- end 구분라인 -->";
-  my @collections = split(/$collection_separator/, $html_body);
+sub realTimeColl {
+  my $self = shift;
+  my $html = shift;
 
-  my @body;
-  foreach my $col ( @collections ) {
-#print STDERR "col=". substr($col, 0, 50). "\n";
-    #s{ ( <ul\sid="realTimeList"> )     # $1
-    $col =~ s{ ( <ul\sid="realTimeList"\s*> )     # $1
-               ( .* )                 # $2
-               (?=</ul>)                       # not $3
-             } #! "matched begin" . $1 . $2 . "end" !isogxe;
-             ! $1 . realtime_tab_list($2) !isogxe
-            #if $param_w eq 'dir' and $param_m eq 'sch_realtime';
-            if ( ($param_w eq 'dir' and $param_m eq 'sch_realtime'
-                  or 0 ) and $param_autolink ne 'off' );
-    
-    my @html_body = split(/\r?\n/, $col);
-    foreach ( @html_body ) {
-      s#http://search.daum.net/search#/preview/search#go;
-      s#\("autocomplete","off"\);</script></span>#\("autocomplete","off"\);</script>#go; # fixed html error
-    }
-
-    do { foreach ( @html_body ) {
-      #s/(<div id="newsColl")/$html_sns_collection\n\n$1/go;
-      s/(<!-- 실시간 검색 Coll -->)/$html_sns_collection\n\n$1/go if $param_w eq 'tot';
-    } } if $param_w eq 'tot';
-
-    do { foreach ( @html_body ) {
-      s{ ( \s | (?<!url)\( | \< | : | ^ | \w ) # $1
-         (                            # $2
-           ( http:// | https:// )     # $3
-           \w+ (\.\w+)+ (/ [^\s\)\>\<]{1,45} )?
-         ) (?=\s|\)|\>|\<|$)             # not $4
-       } ! url_link($1, $2) !iogxe;
-      s{ ( <p\sclass="base desc"> )     # $1
-         ( .{0,300} )                   # $2
-         ( </p> )                       # $2
-         (?=<p\sclass\="info">)       # not $3
-       } ! $1 . $2 !iogxe;
-      s{ ( <ul\sid="base desc"> )     # $1
-         ( .{0,300} )                   # $2
-         ( </p> )                       # $2
-         (?=<p\sclass\="info">)       # not $3
-       } ! $1 . $2 !iogxe;
-    } } if ( ($param_w eq 'dir' and $param_m eq 'sch_realtime'
-              or 0 ) and $param_autolink ne 'off' );
-
-    push @body, @html_body;
-  }
-  #return @html_body;
-  #return @collections;
-  return @body;
+  return $html;
 }
-##############################################################################
 
-my $ua;
-sub fetch_search_result {
-  my $q = shift;
-  my $url = "http://search.daum.net/search?"
-    . $q->query_string;
-  $url =~ s/;/&/go;
-
-  if ( not defined $ua ) {
-    $ua = LWP::UserAgent->new;
-    $ua->agent("DaumSearchTest/0.1");
-  }
-
-  my $req = HTTP::Request->new(GET => $url);
-  my $res = $ua->request($req);
-  return $res;
-}
 
 ##############################################################################
 # XXX url encoding by charset
