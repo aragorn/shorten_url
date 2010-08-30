@@ -115,7 +115,7 @@ sub html_head {
      clickThrough:true,
      cluetipClass:'default',
 */
-     width:380,
+     width:500,
      sticky:true,
      showTitle:false,
      clickThrough:true,
@@ -142,6 +142,9 @@ a.g_tit.twitter:link,
 a.g_tit.twitter:visited { color: #2276BB; color: #09c; }
 a.stit.twitter:link,
 a.stit.twitter:visited { color: #2276BB; color: #09c; }
+p.url.highlighted span.dimmed { font-size: 9pt; font-weight: normal; }
+p.url { font-family: arial, sans-serif; color: #09c; /*#0E774A;*/ }
+p.url.hidden { color: transparent; }
 </style>
 END
 
