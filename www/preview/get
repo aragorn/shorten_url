@@ -76,19 +76,19 @@ sub highlighted_url
       #( [^\/\?]* )
       ( \?.* )? $
   !iox and do {
-    my @u = (0,$1,$2,$3,$4,$5);
+    my @u = (0,"",$2,$3,$4,$5);
     $u[2] = substr($2, 0, 15) . "../" if length $2 > 17; # domain
     $u[3] = substr($3, 0,  7) . "../" if length $3 >  9; # path
-    $u[4] = substr($4, 0, 38) . ".." if length $4 > 40;  # page
-    $u[5] = substr($5, 0, 10) . ".." if length $5 > 12;  # query
+    $u[4] = substr($4, 0, 33) . ".." if length $4 > 35;  # page
+    $u[5] = substr($5, 0, 16) . ".." if length $5 > 18;  # query
     #$shorten = join("#", $1, $2, $3, $4, $5);
     $shorten = join("", $1, $2, $3, $4, $5);
-    $shorten = join("", $1, $2, $3, $4, $u[5]) if length $shorten > 70;
-    $shorten = join("", $1, $2, $u[3], $4, $u[5]) if length $shorten > 70;
-    $shorten = join("", $u[1], $u[2], $u[3], $u[4], $u[5]) if length $shorten > 80;
-    $shorten = join("", $u[1], $u[2], $u[3], $u[4], $u[5] ? "?.." : "") if length $shorten > 80;
-    $shorten = join("", $u[1], $u[2], $u[3] ? "../" : "", $u[4], $u[5] ? "?.." : "") if length $shorten > 80;
-    $shorten = join("", $u[1], $u[2], ($u[3] || $u[4] || $u[5] ) ? "..." : "") if length $shorten > 80;
+    $shorten = join("", $1, $2, $3, $4, $u[5]) if length $shorten > 80;
+    $shorten = join("", $1, $2, $u[3], $4, $u[5]) if length $shorten > 80;
+    $shorten = join("", $u[1], $u[2], $u[3], $u[4], $u[5]) if length $shorten > 82;
+    $shorten = join("", $u[1], $u[2], $u[3], $u[4], $u[5] ? "?.." : "") if length $shorten > 82;
+    $shorten = join("", $u[1], $u[2], $u[3] ? "../" : "", $u[4], $u[5] ? "?.." : "") if length $shorten > 82;
+    $shorten = join("", $u[1], $u[2], ($u[3] || $u[4] || $u[5] ) ? "..." : "") if length $shorten > 82;
 =rem
     $shorten = join("",
       #span({class=>'dimmed'}, $1),
