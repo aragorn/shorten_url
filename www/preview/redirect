@@ -26,8 +26,8 @@ if ($q->self_url =~ m/debug/) {
 
   print $q->header(-charset=>'utf-8', -type=>'text/html');
   print <<END;
-<p class="title">$title</p>
-<p class="url">$original_url</p>
+<p class="title">title: $title</p>
+<p class="url">original url: <a href="$original_url">$original_url</a></p>
 END
 
   my ($t2, $t02) = (new Benchmark, [gettimeofday]);
@@ -50,7 +50,7 @@ END
   my $put_query = join(";", map(+("$_=".escape($query{$_})),
                                 qw(surl ourl otitle code mime source submit)));
   #for ( qw(surl ourl otitle code mime) ) { print p({class=>'debug'}, qq($_:$query{$_})); }
-
+  print p({class=>'url'}, qq(shorten url - <a href="$url">$url</a>));
   print p({class=>'debug'}, "put ",
           a({href=>"put?".$put_query}, "put?".$put_query));
 
