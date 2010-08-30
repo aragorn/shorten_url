@@ -234,7 +234,7 @@ sub request_search_result {
 our $url_pattern = qr{
    (?xi)
      #\b
-     (?: \s | (?<!url)\( | \< | ^) \K # look-behind assertion. optional.
+     (?: \s | (?<!url)\( | \< | ^) # \K # look-behind assertion. optional. # FIXME: \K requires perl 5.9.5
    (                       # Capture 1: entire matched URL
      (?:
        https?://               # http or https protocol
