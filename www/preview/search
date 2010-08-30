@@ -194,12 +194,13 @@ sub make_autolink {
          [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{1,200} )?
         ) \s* "                       # $1
         \s+ target="_blank"
-        (\s+ class="stit")?> \s*
-        (https?://
-         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{1,200} )?
+        (?: \s+ class="stit" )?> \s*
+        ( (?: \w|<b>|</b>|[:/-]|[^\s\)\>\<] ){1,200}
         )                             # $2
         \s* </a>
-   } ! url_link($1,$class,$source) !isogxe;
+   } ! url_link($1,$2,$class,$source) !isogxe;
+         # https?://
+         # [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{1,200} )?
 
   # 텍스트로 URL만 있는 경우
   #s{$Daum::FederatedSearch::url_pattern} !url_link($1,$class,$source)!ioxge;
@@ -226,16 +227,17 @@ sub make_autolink {
          [^\s`!()\[\]\{\};:'".,<>?«»“”‘’]        # not a space or one of these punct chars
        )
      )
-  } !$1.url_link($2,$class,$source)!ioxge;
+  } !$1.url_link($2,$2,$class,$source)!ioxge;
    
   return $_;
 }
 
 sub url_link {
+  my $src    = shift || "";
   my $url    = shift || "";
   my $class  = shift || "";
   my $source = shift || "";
-  my $src = $url; $src = "http://$url" unless $url =~ m#^https?://#;
+  $src = "http://$src" unless $src =~ m#^https?://#;
 
   my $href = "redirect?u=". escape($src) ."&referer=". escape($source); 
   my $rel  = "get?u=". escape($src) ."&referer=". escape($source); 
