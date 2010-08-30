@@ -255,17 +255,32 @@ sub html_body {
   my @htmls = map { s/^\s*|\s*$//g; $_; } split(/$collection_separator/, $html_body);
   my @collections;
 
+  my $first_search_coll = 0;
   foreach ( @htmls ) {
     my $name = "unknown";
     my $div_id = "unknown";
     m/<!--\s*([\w\s]{1,50})\s*-->/io and $name = $1;
     m/<div id="(\w+Coll|netizen_choose|detailSearchN|uccBarBotN|daumHead)"/io and $div_id = $1;
 
+    $first_search_coll ++ if $div_id =~ m/Coll$/;
+
     if ($div_id =~ m/Coll$/
+        and $first_search_coll > 1
         and $selected_tab)
     { # we have an user-defined tab and it is selected now.
       # skip other ...Coll htmls.
       ;
+    }
+    elsif ($div_id =~ m/Coll$/
+        and $first_search_coll == 1
+        and $selected_tab
+        and exists $collection_handler{$selected_coll}
+        and ref $collection_handler{$selected_coll} eq 'CODE')
+    { # we have both user-defined tab and corresponding collection handler.
+      # this div is "search tab" and we add the collection result after this div.
+      $_ = $collection_handler{$selected_coll}->($self);
+      $_ = $collection_handler{defaultColl}->($self,$_);
+      push @collections, {id=>$selected_coll, name=>$selected_tab, html=>$_};
     }
     elsif (exists $collection_handler{$div_id}
            and ref $collection_handler{$div_id} eq 'CODE')
@@ -278,17 +293,6 @@ sub html_body {
     {
       $_ = $collection_handler{defaultColl}->($self,$_);
       push @collections, {id=>$div_id, name=>$name, html=>$_};
-    }
-
-    if ($div_id eq "uccBarBotN"
-        and $selected_tab
-        and exists $collection_handler{$selected_coll}
-        and ref $collection_handler{$selected_coll} eq 'CODE')
-    { # we have both user-defined tab and corresponding collection handler.
-      # this div is "search tab" and we add the collection result after this div.
-      my $added_coll = $collection_handler{$selected_coll}->($self);
-      $added_coll = $collection_handler{defaultColl}->($self,$added_coll);
-      push @collections, {id=>$selected_coll, name=>$selected_tab, html=>$added_coll};
     }
 
     my $handler = ref $collection_handler{$div_id};
