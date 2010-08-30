@@ -25,7 +25,7 @@ print $q->header(-charset=>'utf-8', -type=>'text/html');
 ($t2, $t02) = (new Benchmark, [gettimeofday]);
 push @BENCHMARK, p("before new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
-my $fsearch = new Daum::FederatedSearch(query=>$q);
+my $fsearch = new Daum::FederatedSearch(query=>$q, benchmark=>$t1, gettimeofday=>$t01);
 
 ($t2, $t02) = (new Benchmark, [gettimeofday]);
 push @BENCHMARK, p("after new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
