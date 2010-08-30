@@ -22,14 +22,27 @@ our $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
 
+($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @BENCHMARK, p("before new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
+
 my $fsearch = new Daum::FederatedSearch(query=>$q);
+
+($t2, $t02) = (new Benchmark, [gettimeofday]);
+push @BENCHMARK, p("after new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
+
 $fsearch->handler('realTimeColl', \&realTimeColl);
 $fsearch->handler('snsColl', \&snsColl);
 $fsearch->add_tab('sns', '소셜웹', 'w=sns&q=%s&enc=utf8&nul_search=btn');
 
 if ($fsearch->fetch_search_result($q)) {
+  ($t2, $t02) = (new Benchmark, [gettimeofday]);
+  push @BENCHMARK, p("after fetch_search_result:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
+
   print $fsearch->html_head;
   print $fsearch->html_body;
+
+  ($t2, $t02) = (new Benchmark, [gettimeofday]);
+  push @BENCHMARK, p("after print html_body:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
   map { print $_, "\n"; } @BENCHMARK;
   if (self_url =~ m/debug/) {
