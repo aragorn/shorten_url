@@ -90,10 +90,11 @@ sub searchTab {
   #my (undef,$ul,undef) = split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/, $html, 3);
   my @tab_html;
   my $query = param('q') || "";
+  my $utf8_query = utf8_string($query);
   foreach my $tab ( @added_tab_list )
   {
     my ($id, $name, $href) = map { $tab->{$_} } qw(id name href);
-    my $url = url(-full=>1) . "?" . sprintf($href, escape($query));
+    my $url = url(-full=>1) . "?" . sprintf($href, escape($utf8_query));
     push @tab_html, join("",
       qq(<li id="sb_$id">),
       qq(<a href="$url"),
@@ -102,10 +103,10 @@ sub searchTab {
     );
   }
   #map { push @DEBUG, p("tab_html=".$_); } @tab_html;
-  my $where = param('w');
-  my @current_tab = grep { $_ eq $where } map { $_->{id} } @added_tab_list;
-  my $current_tab = shift @current_tab || "";
-  push @DEBUG, p("current_tab=$current_tab");
+  my $where = param('w') || "";
+  my @selected_tab = grep { $_ eq $where } map { $_->{id} } @added_tab_list;
+  my $selected_tab = shift @selected_tab || "";
+  push @DEBUG, p("selected_tab=$selected_tab");
 =rem
   my @tab_list;
   my $tab_pattern1 = qr{
@@ -149,8 +150,8 @@ map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
   $html =~ s!(<div class="btab"><span class="btab"></span></div>)!join("\n",@tab_html).$1!ioe;
 
   # change the selected tab
-  $html =~ s!(type="text/javascript">uccTabChg\("sbar_)\w+(")!$1.$current_tab.$2!ioe
-    if $current_tab;
+  $html =~ s!(type="text/javascript">uccTabChg\("sbar_)\w+(")!$1.$selected_tab.$2!ioe
+    if $selected_tab;
 
   return $html;
 }
@@ -243,32 +244,58 @@ sub html_body {
   my $html_body = shift;
   return $self->{html_body} unless $html_body;
 
+  my $where = param('w') || "";
+  my @selected_tab = grep { $_ eq $where } map { $_->{id} } @added_tab_list;
+  my $selected_tab = shift @selected_tab || "";
+  my $selected_coll = $selected_tab . "Coll";
+  push @DEBUG, p("selected_tab in body=$selected_tab");
+
   my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|"
                             ."<!-- end 상세검색 -->|<!-- 가상 키보드 DIV START -->";
-  my @collections = map { s/^\s*|\s*$//g; $_; } split(/$collection_separator/, $html_body);
+  my @htmls = map { s/^\s*|\s*$//g; $_; } split(/$collection_separator/, $html_body);
+  my @collections;
 
-  $self->{collections} = [];
-
-  foreach ( @collections ) {
+  foreach ( @htmls ) {
     my $name = "unknown";
     my $div_id = "unknown";
     m/<!--\s*([\w\s]{1,50})\s*-->/io and $name = $1;
     m/<div id="(\w+Coll|netizen_choose|detailSearchN|uccBarBotN|daumHead)"/io and $div_id = $1;
-    my $html;
-    
-    if (exists $collection_handler{$div_id}
-        and ref $collection_handler{$div_id} eq 'CODE')
-         { $html = $collection_handler{$div_id}->($self,$_); }
-    else { $html = $_; }
 
-    $html = $collection_handler{defaultColl}->($self,$html);
-    push @{$self->{collections}}, {id=>$div_id, name=>$name, html=>$html};
+    if ($div_id =~ m/Coll$/
+        and $selected_tab)
+    { # we have an user-defined tab and it is selected now.
+      # skip other ...Coll htmls.
+      ;
+    }
+    elsif (exists $collection_handler{$div_id}
+           and ref $collection_handler{$div_id} eq 'CODE')
+    {
+      $_ = $collection_handler{$div_id}->($self,$_);
+      $_ = $collection_handler{defaultColl}->($self,$_);
+      push @collections, {id=>$div_id, name=>$name, html=>$_};
+    }
+    else 
+    {
+      $_ = $collection_handler{defaultColl}->($self,$_);
+      push @collections, {id=>$div_id, name=>$name, html=>$_};
+    }
+
+    if ($div_id eq "uccBarBotN"
+        and $selected_tab
+        and exists $collection_handler{$selected_coll}
+        and ref $collection_handler{$selected_coll} eq 'CODE')
+    { # we have both user-defined tab and corresponding collection handler.
+      # this div is "search tab" and we add the collection result after this div.
+      my $added_coll = $collection_handler{$selected_coll}->($self);
+      $added_coll = $collection_handler{defaultColl}->($self,$added_coll);
+      push @collections, {id=>$selected_coll, name=>$selected_tab, html=>$added_coll};
+    }
+
     my $handler = ref $collection_handler{$div_id};
     push @DEBUG, p("coll name=$name, div_id=$div_id, handler=$handler");
-    $_ = $html;
   }
 
-  $self->{html_body} = join("\n<!-- end 구분라인 -->\n\n", @collections);
+  $self->{html_body} = join("\n<!-- end 구분라인 -->\n\n", map(+($_->{html}), @collections));
   return wantarray ? @collections : $self->{html_body};
 }
 
@@ -391,10 +418,18 @@ sub find_error_token {
 
 
 ##########################################################################################
+sub is_real_search_collection
+{
+  my $id = shift;
+  return 1 if $id =~ m/Coll$/o;
+  return 1 if $id eq 1;
+}
 sub utf8_string {
   my $str = shift;
-  my $charset = shift;
+  #my $charset = shift;
+  utf8::decode($str);
   return $str if utf8::is_utf8($str);
+=rem
   if ($charset =~ m/utf-8/ig)
   {
     push @DEBUG, "regard string as utf8";
@@ -403,8 +438,8 @@ sub utf8_string {
     push @DEBUG, "utf8::decode=" . utf8::decode($utf8);
     return $utf8;
   }
-
-  push @DEBUG, "decoded euc-kr string to utf8";
+=cut
+  push @DEBUG, "decode euc-kr string to utf8";
   my $utf8 = Encode::decode("cp949", $str);
   push @DEBUG, "utf8::is_utf8=" . utf8::is_utf8($utf8);
   return $utf8;
