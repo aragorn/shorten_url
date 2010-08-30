@@ -283,7 +283,9 @@
       }
 // now that content is loaded, finish the positioning 
       var direction = '';
-      $cluetipOuter.css({zIndex: $this.data('thisInfo').zIndex, overflow: defHeight == 'auto' ? 'visible' : 'auto', height: defHeight});
+      /* XXX aragorn changed this */
+      //$cluetipOuter.css({zIndex: $this.data('thisInfo').zIndex, overflow: defHeight == 'auto' ? 'visible' : 'auto', height: defHeight});
+      $cluetipOuter.css({zIndex: $this.data('thisInfo').zIndex, overflow: 'hidden', height: defHeight});
       tipHeight = defHeight == 'auto' ? Math.max($cluetip.outerHeight(),$cluetip.height()) : parseInt(defHeight,10);   
       tipY = posY;
       baseline = sTop + wHeight;

@@ -35,7 +35,7 @@
 .cluetip-default {
   /* background-color: #d9d9c2; */
   background-color: #e9e9f2;
-  opacity: 0.80; filter:alpha(opacity=80);
+  opacity: 0.90; filter:alpha(opacity=90);
 }
 .cluetip-default #cluetip-outer {
   position: relative;
