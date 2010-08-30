@@ -15,9 +15,12 @@ our $BASE_SEARCH_URL = "http://search.daum.net/search";
 our %collection_handler = (
   name => undef,
   realTimeColl => \&realTimeColl,
+  uccBarBotN   => \&searchTab,
   defaultColl  => \&defaultColl,
   #realtimeColl => undef,
 );
+our @added_tab_list = ();
+our @added_collections = ();
 
 BEGIN {
   ;
@@ -26,9 +29,10 @@ BEGIN {
 sub new {
   my ($class, %arg) = @_;
   @DEBUG = ();
+  @added_tab_list = ();
   bless {
     none => 0,
-    search_url => self_url,
+    search_url => url(-full=>1),
   }, $class;
 }
 
@@ -50,6 +54,18 @@ sub search_url {
   return $self->{search_url};
 }
 
+sub add_tab {
+  my $self = shift;
+  my ($id, $name, $href) = @_;
+  my $html = join("",
+    qq(<li id="sb_dir">),
+    qq(<a href="$href"),
+    qq( id="sbar_$id" class="sbTab tabTxt">),
+    qq(<span class="sp_$id">$name</span></a></li>)
+  );
+  push @added_tab_list, { id=>$id, name=>$name, href=>$href, html=>$html };
+}
+
 ################################################################################
 sub defaultColl {
   my $self = shift;
@@ -68,6 +84,76 @@ sub realTimeColl {
   return "hello, world!";
 }
 
+sub searchTab {
+  my $self = shift;
+  my $html = shift;
+  #my (undef,$ul,undef) = split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/, $html, 3);
+  my @tab_html;
+  my $query = param('q') || "";
+  foreach my $tab ( @added_tab_list )
+  {
+    my ($id, $name, $href) = map { $tab->{$_} } qw(id name href);
+    my $url = url(-full=>1) . "?" . sprintf($href, escape($query));
+    push @tab_html, join("",
+      qq(<li id="sb_$id">),
+      qq(<a href="$url"),
+      qq( id="sbar_$id" class="sbTab tabTxt">),
+      qq(<span class="sp_$id">$name</span></a></li>\n)
+    );
+  }
+  #map { push @DEBUG, p("tab_html=".$_); } @tab_html;
+  my $where = param('w');
+  my @current_tab = grep { $_ eq $where } map { $_->{id} } @added_tab_list;
+  my $current_tab = shift @current_tab || "";
+  push @DEBUG, p("current_tab=$current_tab");
+=rem
+  my @tab_list;
+  my $tab_pattern1 = qr{
+<a \s+ href="[^\?]+\?([^"]+)"
+   \s+ id="sbar_(\w+)"
+   \s+ onClick='[^']*'
+   \s+ class="([\w\s]+)">
+   <span \s class="[\w\s]+">(\w+)</span>
+  }iox;
+  while ( $html =~ m{$tab_pattern1}g ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
+=cut
+
+=rem
+  my $tab_pattern2 = qr{
+class="oLink">
+<a \s+ href="[^\?]+\?([^"]+)"
+   \s+ class="([\w\s]+)"
+   \s+ onClick='[^']*'
+   \s+ target="\w+"
+   \s+ onmouseover="[^"]*"
+   \s+ onmouseout="[^"]*"
+> <span>(\w+)</span>
+  }iox;
+  while ( $html =~ m{$tab_pattern1}g ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
+=cut
+=rem
+  my ($prev,$ul,$next) = #map { s/</&lt;/go; s/>/&gt;/go; $_; }
+    split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/, $html, 3);
+    #split(/<ul|<script/, $html, 3);
+push @DEBUG, p("prev=".($prev)), "-"x80;
+push @DEBUG, p("ul="  .($ul)),   "-"x80;
+push @DEBUG, p("next=".($next)), "-"x80;
+
+  my $separator = qr{<\/li>\s*<li(?:\s+id="\w+")?>|<li(?:\s+id="\w+")?>|<\/li>}iox;
+  my @items = split(/($separator)/, $ul);
+map { push @DEBUG, hr, div("li=".($_)); }
+map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
+=cut
+  #map { push @DEBUG, p("id=".$_->{id}); } @tab_list;
+
+  $html =~ s!(<div class="btab"><span class="btab"></span></div>)!join("\n",@tab_html).$1!ioe;
+
+  # change the selected tab
+  $html =~ s!(type="text/javascript">uccTabChg\("sbar_)\w+(")!$1.$current_tab.$2!ioe
+    if $current_tab;
+
+  return $html;
+}
 ################################################################################
 
 sub handler {
@@ -157,7 +243,8 @@ sub html_body {
   my $html_body = shift;
   return $self->{html_body} unless $html_body;
 
-  my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|<!-- end 상세검색 -->";
+  my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|"
+                            ."<!-- end 상세검색 -->|<!-- 가상 키보드 DIV START -->";
   my @collections = map { s/^\s*|\s*$//g; $_; } split(/$collection_separator/, $html_body);
 
   $self->{collections} = [];
@@ -166,7 +253,7 @@ sub html_body {
     my $name = "unknown";
     my $div_id = "unknown";
     m/<!--\s*([\w\s]{1,50})\s*-->/io and $name = $1;
-    m/<div id="(\w+Coll|netizen_choose)"/io and $div_id = $1;
+    m/<div id="(\w+Coll|netizen_choose|detailSearchN|uccBarBotN|daumHead)"/io and $div_id = $1;
     my $html;
     
     if (exists $collection_handler{$div_id}
