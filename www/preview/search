@@ -191,12 +191,12 @@ sub make_autolink {
   s{ <a \s+ class="stit" 
         \s+ href=" \s*
         (https?://
-         \w+ (?: \.\w+)+ (?: / [^\s\)\>\<]{1,200} )?
+         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{1,200} )?
         ) \s* "                       # $1
         \s+ target="_blank"
         (\s+ class="stit")?> \s*
         (https?://
-         \w+ (?: \.\w+)+ (?: / [^\s\)\>\<]{1,200} )?
+         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{1,200} )?
         )                             # $2
         \s* </a>
    } ! url_link($1,$class,$source) !isogxe;
