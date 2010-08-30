@@ -19,11 +19,11 @@ foreach ( sort keys %ENV )
 print "</table>";
 
 print h2("CGI::http('http_host')=".$ENV{HTTP_HOST});
-my %HTTP = CGI::http();
 print "<table>";
-foreach ( sort keys %HTTP )
+my @http_keys = http();
+foreach ( sort @http_keys )
 {
-  print "<tr><th>$_</th><td>$HTTP{$_}</td></tr>\n";
+  print "<tr><th>$_</th><td>".CGI::http($_)."</td></tr>\n";
 }
 print "</table>";
 
@@ -41,3 +41,4 @@ foreach ( sort keys %CONFIG )
 }
 print "</table>";
 
+print p("END"), end_html;
