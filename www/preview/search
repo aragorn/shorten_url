@@ -16,7 +16,7 @@ use Daum::FederatedSearch;
 our @DEBUG;
 binmode STDOUT, ":encoding(UTF-8)";
 
-my $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
 
@@ -26,11 +26,14 @@ $fsearch->handler('realTimeColl', \&realTimeColl);
 if ($fsearch->fetch_search_result($q)) {
   print $fsearch->html_head;
   print $fsearch->html_body;
-  map { print $_, "\n"; } $fsearch->debug;
 
-  my ($t2, $t02) = (new Benchmark, [gettimeofday]);
-  print p("elapsed=", tv_interval($t01, $t02))."\n";
-  print p("benchmark=", timestr(timediff($t2, $t1)))."\n";
+  if (self_url =~ m/debug/) {
+    map { print $_, "\n"; } $fsearch->debug;
+
+    my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+    print p("elapsed=", tv_interval($t01, $t02))."\n";
+    print p("benchmark=", timestr(timediff($t2, $t1)))."\n";
+  }
   print $fsearch->html_body_close;
 } else {
   print $fsearch->status_line;
@@ -140,25 +143,6 @@ END
 
 ##############################################################################
 
-sub url_link {
-  my $prev   = shift || "";
-  my $url    = shift || "";
-  my $class  = shift || "";
-  my $source = shift || "";
-
-  my $rel  = "get?u=". escape($url) ."&referer=". escape($source); 
-  my $href = "redirect?u=". escape($url) ."&referer=". escape($source); 
-
-  if (self_url =~ m/debug/) {
-     $rel  = "get?u=". escape($url) ."&fetch=1&save=0&referer=". escape($source); 
-  }
-
-  return <<END;
-$prev<a href="$href" target="_blank" class="stit auto tips $class" rel="$rel"
- xxtitle="about this link:">$url</a>
-END
-}
-
 sub twitter_link {
   $_ = shift;
 =rem
@@ -212,7 +196,79 @@ sub realTimeColl {
   my $self = shift;
   my $html = shift;
 
-  return $html;
+  my $separator = qr{<\/li>\s*<li>|<li>|<\/li>};
+  my @items = split(/($separator)/, $html);
+  foreach ( @items ) {
+    next if m/$separator/o;
+    my ($class,$source) = ("","");
+    m!<p\sclass="info">\s*<a\shref="([^"]+)"!isogx and $source = $1;
+    $class = "twitter" if index($source, "twitter.com")> 0;
+
+    s{ (?<=<p\sclass="base\sdesc"> )   # not $1
+       ( .{0,500} )                    # $1
+       (?=</p> \s* <p\sclass="info">)  # not $2
+     }
+    ! make_autolink($1,$class,$source) !isogxe;
+=rem
+    ! "BEGIN(".$1.")END" !isogxe;
+=cut
+    #s{$Daum::FederatedSearch::url_pattern} !url_link($1,$class,$source)!ioxge;
+  }
+  my $modified = join("<!-- XYZ -->", @items);
+
+  return $modified;
+}
+
+sub make_autolink {
+  $_ = shift;
+  my $class  = shift || "";
+  my $source = shift || "";
+
+  s{ ( ^ | \s | [^A-Za-z0-9] )     # $1
+     \@                           
+     ([A-Za-z0-9_]+)               # $2
+   } ! qq($1\@<a href="http://twitter.com/$2" target="_blank" class="g_tit twitter">$2</a>) !isogxe
+   if $class eq "twitter";
+
+  s{ ( ^ | \s | [^A-Za-z0-9] )     # $1
+     \#
+     ([A-Za-z0-9_\w]+ | \w+_ )             # $2
+   } ! qq(<a href="http://twitter.com/search?q=)
+       .escape("#$2").
+       qq(" target="_blank" class="g_tit twitter">#$2</a>) !isogxe
+   if $class eq "twitter";
+
+  # 이미 URL에 링크가 걸려 있는 경우
+  s{ <a \s+ class="stit" 
+        \s+ href="(http.*)"   # $1
+        \s+ target="_blank"
+        (\s+ class="stit")?>
+        (http.*)              # $2
+        </a>
+   } ! url_link($1,$class,$source) !isogxe;
+
+  # 텍스트로 URL만 있는 경우
+  s{$Daum::FederatedSearch::url_pattern} !url_link($1,$class,$source)!ioxge;
+   
+  return $_;
+}
+
+sub url_link {
+  my $url    = shift || "";
+  my $class  = shift || "";
+  my $source = shift || "";
+
+  my $rel  = "get?u=". escape($url) ."&referer=". escape($source); 
+  my $href = "redirect?u=". escape($url) ."&referer=". escape($source); 
+
+  if (self_url =~ m/debug/) {
+     $rel  = "get?u=". escape($url) ."&fetch=1&save=0&referer=". escape($source); 
+  }
+
+  return <<END;
+<a href="$href" target="_blank" class="stit auto tips $class" rel="$rel"
+ xxtitle="about this link:">$url</a>
+END
 }
 
 
