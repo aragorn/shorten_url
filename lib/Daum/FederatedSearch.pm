@@ -57,24 +57,15 @@ sub defaultColl {
   $_ = shift;
   s#http://search.daum.net/search#$search_url#go;
   s#\("autocomplete","off"\);</script></span>#\("autocomplete","off"\);</script>#go; # fixed html error
-  return $_ . '-' x 80 ."\n";
+  return $_ . '-' x 80 ."\n" if self_url =~ m/debug/;
+  return $_;
 }
 
 sub realTimeColl {
   my $self = shift;
   my $html = shift;
-return "hello, world!";
-  $html =~ 
-         s{ ( <ul\sid="realTimeList"\s*> )     # $1
-               ( .* )                 # $2
-               (?=</ul>)                       # not $3
-             } #! "matched begin" . $1 . $2 . "end" !isogxe;
-             ! $1 . realtime_tab_list($2) !isogxe
-;
-            #if $param_w eq 'dir' and $param_m eq 'sch_realtime';
-#            if ( ($param_w eq 'dir' and $param_m eq 'sch_realtime'
-#                  or 0 ) and $param_autolink ne 'off' );
-  return $html;
+
+  return "hello, world!";
 }
 
 ################################################################################
@@ -163,7 +154,7 @@ sub html_body {
   my $html_body = shift;
   return $self->{html_body} unless $html_body;
 
-  my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->";
+  my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|<!-- end 상세검색 -->";
   my @collections = map { s/^\s*|\s*$//g; $_; } split(/$collection_separator/, $html_body);
 
   $self->{collections} = [];
@@ -240,10 +231,10 @@ sub request_search_result {
   return $res;
 }
 
-my $url_pattern = qr{
+our $url_pattern = qr{
    (?xi)
-     \b
-     #(?: \s | (?<!url)\( | \< | ^) \K # look-behind assertion. optional.
+     #\b
+     (?: \s | (?<!url)\( | \< | ^) \K # look-behind assertion. optional.
    (                       # Capture 1: entire matched URL
      (?:
        https?://               # http or https protocol
