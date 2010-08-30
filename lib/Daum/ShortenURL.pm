@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 package Daum::ShortenURL;
 use strict;
 use warnings;
