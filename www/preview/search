@@ -22,6 +22,7 @@ print $q->header(-charset=>'utf-8', -type=>'text/html');
 
 my $fsearch = new Daum::FederatedSearch(query=>$q);
 $fsearch->handler('realTimeColl', \&realTimeColl);
+$fsearch->add_tab('sns', '소셜웹', 'w=sns&q=%s&enc=utf8&nul_search=btn');
 
 if ($fsearch->fetch_search_result($q)) {
   print $fsearch->html_head;
