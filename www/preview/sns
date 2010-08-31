@@ -1,6 +1,5 @@
 #!/usr/bin/perl -w
 
-use lib '/home/aragorn/preview/lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01, $t2, $t02) = (new Benchmark, [gettimeofday]);
@@ -33,9 +32,10 @@ my $where   = param('w') || "tot";
 #my $query_cp949   = $cp949->from_unicode(utf8($query));
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
-#print $q->header(-charset=>'cp949', -type=>'text/html');
 
 =rem
+print $q->header(-charset=>'cp949', -type=>'text/html');
+
 print p({class=>'debug'}, "query=$query,query_cp949=$query_cp949");
 print "query($query) is utf8" if utf8::is_utf8($query);
 print "query($query) is not utf8" unless utf8::is_utf8($query);
@@ -59,9 +59,12 @@ push @DEBUG, "elapsed time 4=".tv_interval($t01, $t02)."secs";
 my ($total_count, $page_count, @list) = parse_xml_result($result);
 
 print <<END;
+<!-- 소셜웹Coll -->
 <style type="text/css">
-#snsColl .collTitle {overflow:visible;margin-bottom:3px;}
-#snsColl #snsList {overflow-y:auto;overflow-x:hidden;height:250px;margin-top:10px;
+#snsColl .collTitle {overflow:visible;margin-bottom:12px;}
+/*
+#snsColl #snsList {
+    overflow-y:auto;overflow-x:hidden;height:250px;margin-top:10px;
     scrollbar-face-color:#FEFEFE;
     scrollbar-shadow-color:#fff;
     scrollbar-highlight-color:#fff;
@@ -70,6 +73,7 @@ print <<END;
     scrollbar-track-color:#F7F7F7;
     scrollbar-arrow-color:#929292;
 }
+*/
 #snsColl li {display:block;float:left;width:692px;}
 #snsColl li.write {height:0px;margin-bottom:0px;overflow:hidden;line-height:0px;font-size:0px;}
 #snsColl li .divAniBox {width:100%;padding-bottom:18px;line-height:16px;}
@@ -134,6 +138,27 @@ background:transparent url(http://imgsrc.search.daum-img.net/search_all/2009/ico
 #newsColl .mlink:visited {text-decoration:none !important;}
 #newsColl .mlink:hover {text-decoration:underline !important;}
 
+#snsColl .collTot {margin-left: 17px;}
+
+#DFMiniSlider {display:inline;margin-left:13px;}
+#DFMiniSlider #sliderWrap {padding:0;border-bottom:0;}
+#DFMiniSlider #sliderWrap .sliderWrap {float:left;position:relative;width:106px;height:20px;}
+#DFMiniSlider #sliderWrap .sliderWrap .handle {width:16px;height:15px;cursor:pointer;}
+#DFMiniSlider #sliderWrap .sliderWrap .handle img {position:relative;top:1px;}
+#DFMiniSlider #sliderWrap .sliderWrap #sliderHandle.handle img {left:-6px;}
+#DFMiniSlider #sliderWrap .sliderWrap #sliderHandle2.handle img {left:0px;}
+#DFMiniSlider #sliderWrap .sliderWrap #activeBg {position:absolute;left:20px;height:3px;top:4px;background:url(http://img-contents.daum-img.net/movie/2008_home/photo/img_slide_on.gif) repeat-x;font-size:0;cursor:pointer;}
+#DFMiniSlider #sliderWrap .sliderWrap #track5 {width:106px;height:17px;background:url(http://imgsrc.search.daum-img.net/search_all/2009/image/img_timeline_bar.gif) no-repeat 0 -84px;cursor:pointer;}
+#DFMiniSlider #sliderWrap .leftTxt {float:left;margin-right:18px;margin-top:2px;white-space:nowrap;}
+#DFMiniSlider #sliderWrap .rightTxt {float:left;margin-left:10px;margin-top:1px;white-space:nowrap;}
+ 
+#DFMiniSlider .tooltip {position:absolute;width:81px;height:24px;background:url('http://imgsrc.search.daum-img.net/search_all/2009/image/rank_tooltip.gif') no-repeat 0 0;}
+#DFMiniSlider .tooltip.r0 {top:-23px;left:-40px;background-position:0 0;}
+#DFMiniSlider .tooltip.r1 {top:-23px;left:-14px;background-position:0 -59px;}
+#DFMiniSlider .tooltip.r2 {top:-23px;left:12px;background-position:0 -118px;}
+#DFMiniSlider .tooltip.r3 {top:-23px;left:38px;background-position:0 -177px;}
+#DFMiniSlider .tooltip.r4 {top:-23px;left:64px;background-position:0 -236px;}
+
 </style>
 END
 
@@ -142,18 +167,21 @@ if ($where eq "tot")
 print <<END;
 <div id="snsColl">
  <div class="collTitle">
- <h2 class="fL">소셜웹 검색</h2>
- $search_url
+   <h2 class="fL">소셜웹</h2>
  </div>
  <div class="collTot" style="height: inherit;">
   <ul id="snsList" style="height: inherit;">
 END
 } else {
+  my $slider = html_DFMiniSlider();
 print <<END;
 <div id="snsColl">
  <div class="collTitle">
- <h2 class="hide">소셜웹 검색</h2>
- $search_url
+   <h2 class="mt2 fL">소셜웹</h2>
+   <span class="fL">$slider</span>
+   <span id="resultCntArea" class="titleLinkFr">&nbsp;
+     <em class="nrl g_tit">1-10 / 총 57,876건</em></span>
+   <div class="clr"></div>
  </div>
  <div class="collTot" style="height: inherit;">
   <ul id="snsList">
@@ -174,7 +202,7 @@ foreach my $doc ( map(+( $list[$_] ), 0..3) )
   print <<END;
 <!--BEGIN-->
 <li>
- <div class="divAniBox">
+ <!--div class="divAniBox"-->
   <div class="thumb fL">
    <a href="$channel_url" target="_blank"><img src="$image_url" width="48" height="48" alt/></a>
   </div>
@@ -225,7 +253,7 @@ END
     <div class="commentFoot"></div>
   </div>
   <div class="clr"></div>
- </div>
+ <!--/div--divAniBox-->
 </li>
 <!--END-->
 END
@@ -235,13 +263,14 @@ if ($where eq "tot")
 {
   my $query_escaped = escape($query);
   print <<END;
-  </ul>
+  <div class="clr"></div>
+  </ul><!--id=snsList"-->
  </div>
  <div class="moreArea">
    <a href="?w=dir&m=sns&q=$query_escaped">소셜웹 더보기</a>
  </div>
 </div>
-<!-- end SNS Coll -->
+<!-- end 소셜웹Coll -->
 <!-- 구분라인 -->
 <div id="line"></div>
 <hr>
@@ -249,9 +278,11 @@ if ($where eq "tot")
 END
 } else {
   print <<END;
-  </ul>
+  <div class="clr"></div>
+  </ul><!--id=snsList"-->
  </div>
 </div>
+<!-- end 소셜웹Coll -->
 END
 }
 
@@ -292,3 +323,221 @@ sub parse_xml_result
   return ($total_count, $page_count, @list);
 }
 
+sub html_DFMiniSlider
+{
+  return <<'END';
+
+<div id="DFMiniSlider" class="DFMiniSlider fL">
+  <div id="sliderWrap">
+    <div id="rankSelTxtArea1" class="leftTxt fwn fs12 "><img class="valign" src="http://imgsrc.search.daum-img.net/search_all/2009/icon/icon_check.gif" width="11" height="12"> 정확도 <span class="vline"> | </span><a id="rankSelTxtRecen" href="javascript:;" class="stit_nv">최신</a></div>
+    <div id="rankSelTxtArea2" class="leftTxt fwn fs12 hide"><a id="rankSelTxtAccu" href="javascript:;" class="stit_nv bulletDot">정확도</a><span class="vline"> | </span><img class="valign" src="http://imgsrc.search.daum-img.net/search_all/2009/icon/icon_check.gif" width="11" height="12"> 최신</div>
+    <div class="sliderWrap">
+      <div id="track5"></div>
+      <div id="sliderHandle" class="handle hide"><img src="http://imgsrc.search.daum-img.net/search_all/2009/btn/btn_lank_cursor.gif" width="13" height="17"></div>
+      <div id="rankSliderTooltip" class="hide"></div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript" defer="defer"> 
+var rankingSlider = (function(){
+  // 핸들러 ID
+  var handleId = "sliderHandle";
+ 
+  // 정확도 최신 showhide 영역 Element
+  var rankSelTxtArea1El = daumSF.$E("rankSelTxtArea1");
+  var rankSelTxtArea2El = daumSF.$E("rankSelTxtArea2");
+  // 정확도 최신 Element
+  var rankSelTxtRecenEl = daumSF.$E("rankSelTxtRecen");
+  var rankSelTxtAccuEl = daumSF.$E("rankSelTxtAccu");
+  // 랭킹슬라이더툴팁 Element
+  var rankSliderTooltipEl = daumSF.$("rankSliderTooltip");
+ 
+  // track의 총길이
+  var trackLength = 106;
+  // 촤우측 이동공간 영역 설정
+  var handleLeftScopeStart = 0;
+  var handleRightScopeEnd = trackLength;
+ 
+  // 년도 기준
+  var startIdx = 1;
+  var endIdx = 5;
+ 
+  // 기타요소 객체
+  var track = daumSF.$("track5");
+ 
+  // 화면 초기화
+  var init = function(){
+    daumSF.$(handleId).style.display="block";
+    //graduation(startYear);
+  };
+ 
+  // 위치값으로 인덱스 계산
+  var getIdxByPos = function( pos ){
+    var distIdx = endIdx - startIdx;
+    var distPos = handleRightScopeEnd - handleLeftScopeStart;
+    var idxPerPixel = distIdx / distPos;
+    var result = startIdx + Math.floor( idxPerPixel * ( pos - handleLeftScopeStart ) );
+    return result;
+  };
+ 
+  // 인덱스값으로 위치값 계산
+  var getPosByIdx = function( idx ){
+    var distIdx = endIdx - startIdx;
+    var distPos = handleRightScopeEnd - handleLeftScopeStart;
+    var pixelPerIdx = distPos / distIdx ;
+    var result = Math.floor( pixelPerIdx * ( idx - startIdx ) );
+    return result;
+  };
+ 
+  // 초기값 설정
+ 
+  var initIdxValue="3"
+  if(daumSF.getParam("sort")) {
+    if(daumSF.getParam("sort")=="" || daumSF.getParam("sort")=="step1" || daumSF.getParam("sort")=="recency" || daumSF.getParam("sort")=="rrecency") initIdxValue="5"
+    else if(daumSF.getParam("sort")=="step2") initIdxValue="4";
+    else if(daumSF.getParam("sort")=="step3") initIdxValue="3";
+    else if(daumSF.getParam("sort")=="step4") initIdxValue="2";
+    else if(daumSF.getParam("sort")=="step5" || daumSF.getParam("sort")=="accuracy") initIdxValue="1";
+  }
+  var handleInitPos = getPosByIdx( initIdxValue );
+ 
+  var toolTipTimeOutId;
+  var setTooltipBox = function(_idx){
+    rankSliderTooltipEl.className = "tooltip r"+_idx;
+    rankSliderTooltipEl.style.display="block";
+  }
+  var hideTooltip = function(){
+    rankSliderTooltipEl.style.display="none";
+  }
+ 
+  // 좌측 핸들러 정의
+  var handle = daumSF.widget.slider( handleId );
+  handle.setScopeX({
+    init : handleInitPos
+  }).addEventListener({
+    type : "onMouseDown",
+    func : function(){
+      handle.setScopeX({
+        start : handleLeftScopeStart,
+        end : handleRightScopeEnd
+      });
+    }
+  }).addEventListener({
+    type : "onMouseMove",
+    func : function(){
+      setTooltipBox(Math.round(handle.getPos().left/(trackLength/4)));
+    }
+  }).addEventListener({
+    type : "onMouseUp",
+    func : function(){
+      handle.setPosX((Math.round(handle.getPos().left/(trackLength/4))*26));
+      _jsSearchByTune(Math.round(handle.getPos().left/(trackLength/4)));
+    }
+  }).addEventListener({
+    type : "onMouseOut",
+    func : function(){
+      toolTipTimeOutId = setTimeout('daumSF.$E("rankSliderTooltip").style.display="none"',2000);
+    }
+  }).addEventListener({
+    type : "onMouseOver",
+    func : function(){
+      setTooltipBox(Math.round(handle.getPos().left/(trackLength/4)));
+    }
+  }).run();
+ 
+  // 트랙 정의
+  daumSF.Event.addEvent( track, "mousedown", function(e){
+    var coords = daumSF.getCoords( track.id );
+    var startX = e.clientX;
+    var origX = this.offsetLeft + coords.left;
+    var deltaX = startX - origX;
+    handle.setPosX((Math.round(deltaX/(trackLength/4))*26));
+    track.focus();
+    _jsSearchByTune(Math.round(handle.getPos().left/(trackLength/4)));
+  }, false );
+  daumSF.Event.addEvent( track, "mousemove", function(e){
+    var coords = daumSF.getCoords( track.id );
+    var startX = e.clientX;
+    var origX = this.offsetLeft + coords.left;
+    var deltaX = startX - origX;
+    setTooltipBox(Math.round(deltaX/(trackLength/4)));
+  }, false );
+  daumSF.Event.addEvent( track, "mouseout", function(e){
+    toolTipTimeOutId = setTimeout('daumSF.$E("rankSliderTooltip").style.display="none"',2000);
+  }, false );
+ 
+  // 최신 클릭
+  daumSF.addEvent( rankSelTxtRecenEl, "click", function(ev){
+    var target = daumSF.getElement( ev );
+    handle.setPosX(getPosByIdx(5));
+    rankSelTxtArea1El.style.display="none";
+    rankSelTxtArea2El.style.display="block";
+    _jsSearchByTune(4);
+    smartLog(this, "s=BL&a=RKBL&pg=1&r=1&p=6&rc=1", null);
+    return gLink(null, "RKBL", "1", "6");
+  }, false );
+  // 정확도 클릭
+  daumSF.addEvent( rankSelTxtAccuEl, "click", function(ev){
+    var target = daumSF.getElement( ev );
+    handle.setPosX(getPosByIdx(3));
+    rankSelTxtArea1El.style.display="block";
+    rankSelTxtArea2El.style.display="none";
+    _jsSearchByTune(2);
+    smartLog(this, "s=BL&a=RKBL&pg=1&r=1&p=7&rc=1", null);
+    return gLink(null, "RKBL", "1", "7");
+  }, false );
+ 
+  init();
+ 
+})();
+ 
+function _jsSearchByTune(_opt){
+  var sType = "";
+  switch(_opt){
+    case 0 :
+      sType="step5";
+      break;
+    case 1 :
+      sType="step4";
+      break;
+    case 2 :
+      sType="step3";
+      break;
+    case 3 :
+      sType="step2";
+      break;
+    case 4 :
+      sType="step1";
+      break;
+  }
+  if(_opt >=3){
+    daumSF.$E("rankSelTxtArea1").style.display="none";
+    daumSF.$E("rankSelTxtArea2").style.display="block";
+  }else{
+    daumSF.$E("rankSelTxtArea1").style.display="block";
+    daumSF.$E("rankSelTxtArea2").style.display="none";
+  }
+  blogParameters.sort = sType;
+  doSearchByAjax();
+}
+ 
+function _chgSortOrder(_opt){
+  if(_opt==0){
+    //과거순
+    blogParameters.sort = "rrecency";
+    daumSF.$E("sortBtnOldOrder").style.display="none";
+    daumSF.$E("sortBtnNewOrder").style.display="block";
+    doSearchByAjax();
+  }else if(_opt==1){
+    //최신순
+    blogParameters.sort = "step1";
+    daumSF.$E("sortBtnOldOrder").style.display="block";
+    daumSF.$E("sortBtnNewOrder").style.display="none";
+    doSearchByAjax();
+  }
+}
+</script>
+END
+
+}
