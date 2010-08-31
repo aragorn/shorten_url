@@ -19,6 +19,7 @@ our %collection_handler = (
   realTimeColl => \&realTimeColl,
   uccBarBotN   => \&searchTab,
   defaultColl  => \&defaultColl,
+  daumHead     => \&daumHead,
   #realtimeColl => undef,
 );
 our @added_tab_list = ();
@@ -155,6 +156,14 @@ map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
   $html =~ s!(type="text/javascript">uccTabChg\("sbar_)\w+(")!$1.$selected_tab.$2!ioe
     if $selected_tab;
 
+  return $html;
+}
+
+sub daumHead {
+  my $self = shift;
+  my $html = shift;
+  my $where = param('w');
+  $html =~ s!(<input type="hidden" name="w" value=")(\w+)(">)!$1$where$3!io;
   return $html;
 }
 ################################################################################
