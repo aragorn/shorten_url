@@ -1,14 +1,15 @@
 #!/usr/bin/perl -w
 
-use lib '/home/aragorn/perl/lib/perl5/site_perl';
-use lib '/home/aragorn/preview/lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01) = (new Benchmark, [gettimeofday]);
 use strict;
 use warnings;
+use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use Daum::ShortenURL;
+
+binmode STDOUT, ":encoding(UTF-8)";
 
 our @DEBUG;
 
@@ -22,7 +23,7 @@ my ($row,$res) = $shorten->lookup_local($url,$referer);
 my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_url);
 $title = "제목이 없습니다" unless $title;
 
-if ($q->self_url =~ m/debug/) {
+if (url(-absolute=>1) =~ m/debug/) {
 
   print $q->header(-charset=>'utf-8', -type=>'text/html');
   print <<END;

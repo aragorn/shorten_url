@@ -8,6 +8,8 @@ use warnings;
 use CGI qw(:standard escape unescape escapeHTML -oldstyle_urls);
 use Daum::ShortenURL;
 
+binmode STDOUT, ":encoding(UTF-8)";
+
 our @DEBUG;
 
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML

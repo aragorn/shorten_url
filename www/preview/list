@@ -1,6 +1,5 @@
 #!/usr/bin/perl -w
 
-use lib '/home/aragorn/preview/lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01) = (new Benchmark, [gettimeofday]);
@@ -9,6 +8,8 @@ use warnings;
 use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use Daum::ShortenURL;
+
+binmode STDOUT, ":encoding(UTF-8)";
 
 our @DEBUG;
 our @fields_url_trans = 
@@ -75,8 +76,8 @@ print get_page_links($from, $count, $urls);
 my ($t2, $t02) = (new Benchmark, [gettimeofday]);
 print p({class=>'debug'}, "elapsed=", tv_interval($t01, $t02))."\n";
 print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
-map { print p({class=>'debug'}, $_); } $shorten->debug if $q->self_url =~ m/debug/;
-map { print p({class=>'debug'}, $_); } @DEBUG if $q->self_url =~ m/debug/;
+map { print p({class=>'debug'}, $_); } $shorten->debug if url(-absolute=>1) =~ m/debug/;
+map { print p({class=>'debug'}, $_); } @DEBUG if url(-absolute=>1) =~ m/debug/;
 
 exit;
 
