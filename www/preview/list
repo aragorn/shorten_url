@@ -52,6 +52,7 @@ print "</tr>\n";
 foreach my $row ( @list )
 {
   my $redirect = "redirect?u=". escape($row->{shorten_url});
+  map { utf8::decode($row->{$_}); } qw(shorten_url original_url original_title website);
   print "<tr>\n";
   print qq(<td class="url_id">$row->{url_id}</td>\n);
   print qq(<td class="shorten_url"><a href="$redirect" target="_blank">$row->{shorten_url}</a></td>\n);
