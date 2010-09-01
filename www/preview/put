@@ -1,7 +1,4 @@
 #!/usr/bin/perl -w
-
-use lib '/home/aragorn/perl/lib/perl5/site_perl';
-use lib '/home/aragorn/preview/lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01) = (new Benchmark, [gettimeofday]);
@@ -45,11 +42,11 @@ if (exists $row->{url_id}) {
   if ($r) {
     print qq(OK\n);
     print qq(successfully updated: $url_id - $shorten_url\n);
-    map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+    map { print "debug: $_\n"; } $shorten->debug if url(-absolute=>1) =~ m/debug/;
   } else {
     print qq(ERROR\n);
     print qq(error[$r] occurred: $url_id - $shorten_url\n);
-    map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+    map { print "debug: $_\n"; } $shorten->debug if url(-absolute=>1) =~ m/debug/;
   }
   exit;
 }
@@ -59,11 +56,11 @@ my $r = $shorten->put($shorten_url, $original_url,
 if ($r) {
   print qq(OK\n);
   print qq(successfully saved: $shorten_url\n);
-  map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+  map { print "debug: $_\n"; } $shorten->debug if url(-absolute=>1) =~ m/debug/;
 } else {
   print qq(ERROR\n);
   print qq(error[$r] occurred: $shorten_url\n);
-  map { print "debug: $_\n"; } $shorten->debug if $q->self_url =~ m/debug/;
+  map { print "debug: $_\n"; } $shorten->debug if url(-absolute=>1) =~ m/debug/;
 }
 
 exit;
