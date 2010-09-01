@@ -7,6 +7,7 @@ use charnames ":full";
 use LWP::UserAgent;
 use Encode qw/encode decode/;
 use DBI;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 
 use vars qw(%CONFIG %CONFIG_ALL @DEBUG);
 our $VERSION = '0.1';
@@ -23,29 +24,29 @@ BEGIN {
 
   %CONFIG_ALL = (
   example  => 'none',
-  '110.45.208.13' =>
+  'search-url-web1:80' =>
     { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.21',
       DBUSER=>'url_svc', DBPASSWD=>'image1002' },
-  '110.45.208.13:8080' =>
+  'search-url-web1:8080' =>
     { DBNAME_MASTER => 'database=url_test;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_test;host=10.10.208.21',
       DBUSER=>'url_test', DBPASSWD=>'image1001' },
 
-  '110.45.208.14' =>
+  'search-url-web2:80' =>
     { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.31',
       DBUSER=>'url_svc', DBPASSWD=>'image1002' },
-  '110.45.208.14:8080' =>
+  'search-url-web2:8080' =>
     { DBNAME_MASTER => 'database=url_test;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_test;host=10.10.208.31',
       DBUSER=>'url_test', DBPASSWD=>'image1001' },
 
-  '110.45.208.69' =>
+  'search-url-web3:80' =>
     { DBNAME_MASTER => 'database=url_svc;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_svc;host=10.10.208.77',
       DBUSER=>'url_svc', DBPASSWD=>'image1002' },
-  '110.45.208.69:8080' =>
+  'search-url-web3:8080' =>
     { DBNAME_MASTER => 'database=url_test;host=10.10.208.88',
       DBNAME_SLAVE  => 'database=url_test;host=10.10.208.77',
       DBUSER=>'url_test', DBPASSWD=>'image1001' },
@@ -55,7 +56,7 @@ BEGIN {
       DBUSER=>'aragorn', DBPASSWD=>'image' },
   );
 
-  my $http_host = $ENV{HTTP_HOST} || 'default';
+  my $http_host = join(":", server_name, server_port);
   if ( exists $CONFIG_ALL{$http_host} ) { %CONFIG = %{$CONFIG_ALL{$http_host}}; }
   else                                  { %CONFIG = %{$CONFIG_ALL{default}}; }
 }
