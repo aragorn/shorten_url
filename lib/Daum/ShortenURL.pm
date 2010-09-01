@@ -7,7 +7,7 @@ use charnames ":full";
 use LWP::UserAgent;
 use Encode qw/encode decode/;
 use DBI;
-use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use CGI;
 
 use vars qw(%CONFIG %CONFIG_ALL @DEBUG);
 our $VERSION = '0.1';
@@ -56,7 +56,7 @@ BEGIN {
       DBUSER=>'aragorn', DBPASSWD=>'image' },
   );
 
-  my $http_host = join(":", server_name, server_port);
+  my $http_host = join(":", CGI::server_name, CGI::server_port);
   if ( exists $CONFIG_ALL{$http_host} ) { %CONFIG = %{$CONFIG_ALL{$http_host}}; }
   else                                  { %CONFIG = %{$CONFIG_ALL{default}}; }
 }
