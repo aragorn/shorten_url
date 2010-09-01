@@ -202,9 +202,12 @@ sub list {
   $where .= " and original_url like ?" if $original_url;
   my $counting_sql = "select count(*) from url_translation $where";
   my $listing_sql = qq(select * 
-from url_translation $where
-order by url_id asc
-limit ?, ?
+from url_translation A inner join 
+ (select url_id from url_translation
+  $where
+  order by url_id asc
+  limit ?, ?
+ ) B on A.url_id = B.url_id
 );
   my @binded_vars;
   map { push @binded_vars, $_ if $_; } ($website, $original_url);
