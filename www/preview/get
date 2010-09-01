@@ -21,13 +21,13 @@ print $q->header(-charset=>'utf-8', -type=>'text/html');
 
 my ($row,$res) = $shorten->lookup_local($url,$referer);
 
-if ($q->self_url =~ m/debug/) {
+if (url(-absolute=>1) =~ m/debug/) {
   $fetch   = param('fetch') || 0;
   $save    = param('save')  || 0;
 }
 
 print p({class=>'debug'}, "executes fetch_and_save($url,$referer), fetch=$fetch")."\n"
-  if not exists $row->{url_id} and $fetch and $q->self_url =~ m/debug/;
+  if not exists $row->{url_id} and $fetch and url(-absolute=>1) =~ m/debug/;
 
 if (not exists $row->{url_id} and $fetch and $save) {
   ($row,$res) = $shorten->fetch_and_save($url,$referer);
@@ -45,7 +45,7 @@ print <<END;
 <p class="url hidden">$original_url</p>
 END
 
-if ($q->self_url =~ m/debug/) {
+if (url(-absolute=>1) =~ m/debug/) {
   my ($t2, $t02) = (new Benchmark, [gettimeofday]);
   print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
   print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
