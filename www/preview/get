@@ -1,7 +1,5 @@
 #!/usr/bin/perl -w
 
-use lib '/home/aragorn/perl/lib/perl5/site_perl';
-use lib '/home/aragorn/preview/lib';
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01) = (new Benchmark, [gettimeofday]);
