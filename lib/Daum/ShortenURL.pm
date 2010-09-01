@@ -438,7 +438,8 @@ sub fetch_webpage {
     $ua = LWP::UserAgent->new;
     $ua->agent("Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) "
               ."AppleWebKit/533.4 (KHTML, like Gecko) Chrome/5.0.375.125 Safari/533.4");
-    #$ua->proxy([qw(http https)] => 'socks://127.0.0.1:1080');
+    $ua->proxy([qw(http https)] => 'socks://127.0.0.1:1080')
+      if CGI::server_name eq 'shorten_url_dev';
   }
 
   my $req = HTTP::Request->new(GET => $url);
