@@ -9,9 +9,12 @@ use LWP::Simple qw(!head);
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
+use Time::Local;
+use POSIX qw(locale_h);
 
 our @DEBUG = ();
 our ($t_bench0, $t_gtod0);
+POSIX::setlocale( &POSIX::LC_ALL, "ko_KR.UTF-8" );
 
 sub new {
   my ($class, %arg) = @_;
@@ -32,8 +35,7 @@ sub parse_xml_result
   my $self = shift;
   my $xml  = shift;
   my $page = shift;
-  my %result = ();
-  my %doc = ();
+  my (%result, %doc, %doc_in_clusters);
 
   my @xml_path;
   my $xml_start = sub {
@@ -48,6 +50,9 @@ sub parse_xml_result
     elsif ($path eq q{r/ds})        { $result{ds} = []; return; }
     elsif ($path eq q{r/ds/data})   { %doc = (); }
     elsif ($path =~ m{^r/ds/data/([\w\-]+)$}o ) { return; }
+    elsif ($path eq q{r/ds/data/clusters})      { $doc{clusters} = []; return; }
+    elsif ($path eq q{r/ds/data/clusters/data}) { %doc_in_clusters = (type=>$atts{rt}); }
+    elsif ($path =~ m{^r/ds/data/clusters/data/([\w\-]+)$}o ) { return; }
     else {
 print "$path started - unexpected\n";
       return;
@@ -61,7 +66,8 @@ print "$path started - unexpected\n";
 
     if    ($path eq q{r} or $path eq q{r/m} ) { return; }
     elsif ($path =~ m{^r/m/}o )     { return; }
-    elsif ($path eq q{r/ds/data})   { my %copied_doc = %doc; push @{$result{ds}}, \%copied_doc; }
+    elsif ($path eq q{r/ds/data})   { my %copy = %doc; push @{$result{ds}}, \%copy; }
+    elsif ($path eq q{r/ds/data/clusters/data}) { my %copy = %doc_in_clusters; push @{$doc{clusters}}, \%copy; }
     else { return; }
     print "$path(elt=$elt) ended\n";
   };
@@ -78,6 +84,7 @@ print "$path started - unexpected\n";
     elsif ($path =~ m{^r/m/([\w\-]+)$}o ) { $result{$1} = $str; }
     elsif ($path eq q(r/g) )        { ; } # ignore
     elsif ($path =~ m{^r/ds/data/([\w\-]+)$}o ) { $doc{$1} = $str; }
+    elsif ($path =~ m{^r/ds/data/clusters/data/([\w\-]+)$}o ) { $doc_in_clusters{$1} = $str; }
     else {
       print "$path str=[$str]   ", length $str, "\n";
     }
@@ -98,8 +105,34 @@ print "$path started - unexpected\n";
   my $page_end   = $result{page_count} + $page_start - 1;
   $result{page_start} = $page_start;
   $result{page_end}   = $page_end;
+  $result{serverdttm} = dttm_now();
 
   return \%result;
+}
+
+sub dttm_now {
+  my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime;
+  return sprintf "%04d%02d%02d%02d%02d%02d", $year+1900, $mon+1, $mday, $hour, $min, $sec;
+}
+
+sub relative_time {
+  my $time1 = shift;
+  my $time2 = shift;
+  my $start = $time1 > $time2 ? $time2 : $time1;
+  my $end   = $time1 > $time2 ? $time1 : $time2;
+  if ($end - $start < 60) { return sprintf "%d초전", $end-$start; }
+  else {
+    my $epoch = dttm2epoch($time1);
+    my $str = POSIX::strftime("%Y.%m.%d (%a) %p %l:%M", localtime($epoch));
+    utf8::decode($str);
+    return $str;
+  }
+}
+
+sub dttm2epoch {
+  my $dttm = shift;
+  my ($year,$mon,$mday,$hour,$min,$sec) = unpack("a4a2a2a2a2a2", $dttm );
+  return timelocal($sec,$min,$hour,$mday,$mon-1,$year);
 }
 
 sub init_benchmark {
