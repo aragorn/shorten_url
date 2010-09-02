@@ -1,83 +1,66 @@
 #!/usr/bin/perl -w
 
-use Benchmark;
-use Time::HiRes qw(gettimeofday tv_interval);
-my ($t1, $t01, $t2, $t02) = (new Benchmark, [gettimeofday]);
 use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use LWP::Simple qw(!head);
-use XML::Simple;
-$XML::Simple::PREFERRED_PARSER="XML::Parser";
-use Unicode::String qw(utf8);
+use XML::Parser;
 use Data::Dumper;
-#use Daum::ShortenURL;
+use Daum::Breeze2;
+
+Daum::Breeze2::init_benchmark();
 
 our @DEBUG;
 binmode STDOUT, ":encoding(UTF-8)";
-#my $cp949 = new Unicode::Map("cp949");
-($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @DEBUG, "elapsed time 1=".tv_interval($t01, $t02)."secs";
 
-#my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time 1");
+
+my $bz2     = new Daum::Breeze2;
 my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
+#my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
 my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=200&q=%s&p=%s";
-my $parser  = new XML::Simple;
+#my $base_url = "http://110.45.208.13:8080/xml/144.200.iphone.xml?q=%s&p=%s";
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
-my $query   = param('q') || ""; utf8::decode($query);
+my $query   = param('q') || "iphone"; utf8::decode($query);
 my $page    = param('p') || "1";
 my $where   = param('w') || "tot";
 
-#my $query_cp949   = $cp949->from_unicode(utf8($query));
+#print $q->header(-charset=>'utf-8', -type=>'text/html');
+print $q->header(-charset=>'utf-8', -type=>'text/plain');
 
-print $q->header(-charset=>'utf-8', -type=>'text/html');
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time 2");
 
-=rem
-print $q->header(-charset=>'cp949', -type=>'text/html');
-
-print p({class=>'debug'}, "query=$query,query_cp949=$query_cp949");
-print "query($query) is utf8" if utf8::is_utf8($query);
-print "query($query) is not utf8" unless utf8::is_utf8($query);
-print "<br/>";
-my $decoded = $query_cp949; utf8::decode($decoded);
-print "query($decoded) is utf8" if utf8::is_utf8($decoded);
-print "query($decoded) is not utf8" unless utf8::is_utf8($decoded);
-=cut
-
-($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @DEBUG, "elapsed time 2=".tv_interval($t01, $t02)."secs";
-#my $search_url = sprintf($base_url, escape($query_cp949), $page);
+print "<!--\n";
 my $search_url = sprintf($base_url, escape($query), $page); # unless utf8::is_utf8($query);
-my $xml = LWP::Simple::get($search_url);
-($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @DEBUG, "elapsed time 3=".tv_interval($t01, $t02)."secs";
-my $result = $parser->XMLin($xml, noattr=>1, suppressempty=>1);
-($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @DEBUG, "elapsed time 4=".tv_interval($t01, $t02)."secs";
+print "search_url=$search_url\n";
 
-my ($total_count, $page_count, @list) = parse_xml_result($result);
+my $xml = LWP::Simple::get($search_url); utf8::decode($xml);
+
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time 3");
+
+my $result = $bz2->parse_xml_result($xml,$page);
+
+push @DEBUG, Daum::Breeze2::check_clock("after parse   ");
+
+map { print "debug: ", $_, "\n"; } @DEBUG;
+map { print "result $_: ", $result->{$_}, "\n"; } sort keys %{$result};
+
+print "-->\n";
 
 print <<END;
 <!-- 소셜웹Coll -->
 <style type="text/css">
-#snsColl .collTitle {overflow:visible;margin-bottom:12px;}
 /*
-#snsColl #snsList {
-    overflow-y:auto;overflow-x:hidden;height:250px;margin-top:10px;
-    scrollbar-face-color:#FEFEFE;
-    scrollbar-shadow-color:#fff;
-    scrollbar-highlight-color:#fff;
-    scrollbar-3dlight-color:#DEDEDE;
-    scrollbar-darkshadow-color:#dedede;
-    scrollbar-track-color:#F7F7F7;
-    scrollbar-arrow-color:#929292;
-}
+#snsColl li {outline: 1px solid red;}
+#snsColl li .commentBox {float:left;width:654px;}
 */
-#snsColl li {display:block;float:left;width:692px;}
+
+#snsColl .collTitle {overflow:visible;margin-bottom:12px;}
+#snsColl li {display:block;float:left;width:719px;}
 #snsColl li.write {height:0px;margin-bottom:0px;overflow:hidden;line-height:0px;font-size:0px;}
 #snsColl li .divAniBox {width:100%;padding-bottom:18px;line-height:16px;}
-#snsColl li .thumb {margin-right:7px;}
+#snsColl li .thumb {margin:1px 15px 0 0;}
 #snsColl li .thumb img {border:1px solid #ECECEC;}
 #snsColl li .desc {padding-top:2px;line-height:18px;}
 #snsColl li .info {padding-top:2px;font:12px/13px AppleGothic,gulim,sans-serif;}
@@ -88,12 +71,12 @@ print <<END;
 #snsColl li .commentFoot {width:100%;height:10px;font-size:0px;line-height:0px;background:url("http://imgsrc.search.daum-img.net/search_all/2009/image/bg_realsearch.gif") no-repeat -1260px bottom;}
 */
 
-#snsColl li .commentBox {float:left;width:635px; }
-#snsColl li .commentBody {padding:0px 15px 0px 15px; }
-#snsColl li .commentFoot {width:100%;height:10px;font-size:0px;line-height:0px; }
+#snsColl li .commentBox {float:left;width:654px;}
+#snsColl li .commentBody {padding:0px 0px 0px 0px; }
+#snsColl li .commentFoot {width:100%;height:0px;font-size:0px;line-height:0px; }
 
-#snsColl li .commentBody .desc {padding-top:8px;line-height:18px;}
-* html #snsColl li .commentBody .desc {padding-top:9px;}
+#snsColl li .commentBody .desc {padding-top:0px;line-height:18px;}
+
 #snsColl li .commentBody .info {padding-top:2px;font:12px/13px AppleGothic,gulim,sans-serif;}
 #snsColl li .textBox {padding-top:3px;}
 #snsColl li .getTime {color:#6671FF;font-size:12px;text-decoration: none;}
@@ -102,6 +85,8 @@ print <<END;
 #snsColl li .nick {color:#7A7A7A;}
 #snsColl li .source {color:#7A7A7A;}
 #snsColl li .vline {font-size:11px;}
+#snsColl li .hline {border-top:#e2e2e2 solid 1px;font-size:0px;height:12px;margin-top:12px;}
+#snsColl li ul.cluster li {width: 100%;}
 
 #snsColl li .icoYozm {padding-left:14px;padding-bottom:1px;background: url("http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_svico.gif") no-repeat -2px 0px;}
 #snsColl li .icoMetwo {padding-left:16px;background: url("http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_svico.gif") no-repeat 0px -34px;}
@@ -174,13 +159,15 @@ print <<END;
 END
 } else {
   my $slider = html_DFMiniSlider();
+  my %cnt;
+  map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
 print <<END;
 <div id="snsColl">
  <div class="collTitle">
    <h2 class="mt2 fL">소셜웹</h2>
    <span class="fL">$slider</span>
    <span id="resultCntArea" class="titleLinkFr">&nbsp;
-     <em class="nrl g_tit">1-10 / 총 57,876건</em></span>
+     <em class="nrl g_tit">$cnt{page_start}-$cnt{page_end} / 총 $cnt{total_count}\건</em></span>
    <div class="clr"></div>
  </div>
  <div class="collTot" style="height: inherit;">
@@ -188,7 +175,7 @@ print <<END;
 END
 }
 
-foreach my $doc ( map(+( $list[$_] ), 0..3) )
+foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..3) )
 {
   my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
    = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
@@ -229,6 +216,7 @@ END
   print qq(<ul class="cluster">\n) if @clusters > 0;
   foreach my $clustered ( @clusters )
   {
+=rem
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
@@ -245,14 +233,16 @@ END
         </span>
       </li>
 END
+=cut
   }
   print qq(</ul>\n) if @clusters > 0;
 
   print <<END
     </div>
     <div class="commentFoot"></div>
-  </div>
+  </div><!--class="commentBox"-->
   <div class="clr"></div>
+  <div class="hline"></div>
  <!--/div--divAniBox-->
 </li>
 <!--END-->
@@ -288,10 +278,9 @@ END
 
 #print pre(Dumper($result));
 
-($t2, $t02) = (new Benchmark, [gettimeofday]);
-print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
-print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
-if ($q->self_url =~ m/debug/) {
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time x");
+
+if (url(-absolute=>1) =~ m/debug/) {
   foreach ( @DEBUG ) { print p({class=>'debug'}, $_); }
   my $reload_link = $q->unescape($q->script_name ."?". $q->query_string); utf8::decode($reload_link);
   print p({class=>'debug'}, "reload ",
@@ -304,24 +293,6 @@ END
 
 exit;
 
-sub parse_xml_result
-{
-  my $result = shift;
-  my $total_count = 0;
-  my $page_count = 0;
-  my @list = ();
-  if ( defined $result->{m} )
-  {
-    $total_count = $result->{m}->{c};
-    $page_count  = $result->{m}->{pc};
-  }
-  if ( defined $result->{ds} )
-  {
-    @list = @{ $result->{ds}->{data} };
-  }
-
-  return ($total_count, $page_count, @list);
-}
 
 sub html_DFMiniSlider
 {
