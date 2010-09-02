@@ -19,7 +19,7 @@ push @DEBUG, Daum::Breeze2::check_clock("elapsed time 1");
 my $bz2     = new Daum::Breeze2;
 my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
 #my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
-my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=200&q=%s&p=%s";
+my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=200&q=%s&p=%s&child=y&submit=yes";
 #my $base_url = "http://110.45.208.13:8080/xml/144.200.iphone.xml?q=%s&p=%s";
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $query   = param('q') || "iphone"; utf8::decode($query);
@@ -32,7 +32,10 @@ print $q->header(-charset=>'utf-8', -type=>'text/plain');
 push @DEBUG, Daum::Breeze2::check_clock("elapsed time 2");
 
 print "<!--\n";
+my $param_reply = param('reply') || "";
 my $search_url = sprintf($base_url, escape($query), $page); # unless utf8::is_utf8($query);
+$search_url = sprintf("http://10.30.144.200:7777/front/search.py?enc=utf8&reply=%s&submit=yes",
+              $param_reply) if $param_reply;
 print "search_url=$search_url\n";
 
 my $xml = LWP::Simple::get($search_url); utf8::decode($xml);
@@ -124,6 +127,9 @@ background:transparent url(http://imgsrc.search.daum-img.net/search_all/2009/ico
 #newsColl .mlink:hover {text-decoration:underline !important;}
 
 #snsColl .collTot {margin-left: 17px;}
+#snsColl ul.cluster {margin-top: 8px;}
+#snsColl ul.cluster li.indent {xxbackground: url(http://imgsrc.search.daum-img.net/search_all/2009/icon/cb_search_icon_2009.gif);}
+#snsColl ul.cluster a.cluster {font-weight: bold; color: #0307C3; }
 
 #DFMiniSlider {display:inline;margin-left:13px;}
 #DFMiniSlider #sliderWrap {padding:0;border-bottom:0;}
@@ -182,9 +188,9 @@ $page_count = 30 if $page_count > 30;
 foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
 {
   my ($docid, $edocid, $content, $url, $image_url, $channel_url,
-      $writedttm, $sns_name, $reply, $retweet )
+      $writedttm, $sns_name, $reply, $retweet, $child_count )
    = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
-       qw(docid edocid content url image_url channel_url writedttm sns_name reply retweet);
+       qw(docid edocid content url image_url channel_url writedttm sns_name reply retweet child_count);
   my $write_time = Daum::Breeze2::relative_time($writedttm, $result->{serverdttm});
   my $channel_link = "&nbsp;";
   my $source_class = "icoTwitter";
@@ -233,12 +239,23 @@ END
   print qq(<ul class="cluster">\n);
   my $clusters = @clusters;
   print <<END;
-      <li>관련글 $clusters\건
+      <li>관련글 <a href="" class="cluster">$clusters</a>건
         <a href="$channel_url" target="_blank" class="getTime">
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
           </span>
         </a>
+END
+  if ($child_count > 0) {
+    my $href = "?w=sns&q=".escape($query)."&reply=".escape($edocid);
+    print <<END;
+        <span class="vline">|</span>
+        <span class="child">
+          <a href="$href" class="g_tit">이 글에 달린 답글보기</a>
+        </span>
+END
+  }
+  print <<END;
       </li>
 END
 
@@ -247,9 +264,10 @@ END
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
+    my $write_time = Daum::Breeze2::relative_time($writedttm, $result->{serverdttm});
     print <<END;
-      <li>$content
-        <a href="$channel_url" target="_blank" class="getTime">
+      <li class="indent">$content
+        <a href="$channel_url" target="_blank" class="getTime">$write_time
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
           </span>

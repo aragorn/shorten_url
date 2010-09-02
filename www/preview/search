@@ -67,10 +67,11 @@ sub snsColl {
   my $utf8_query = Daum::FederatedSearch::utf8_string($query);
   my $query_escaped = escape($utf8_query);
   my $where = $q->param('w') || "";
+  my $reply = param('reply') || "";
   my $page  = 1;
   my $full_url = url(-full=>1); $full_url =~ s/\w+$//o;
-  my $base_url = $full_url . "sns?w=$where&q=%s&p=%s";
-  my $search_url = sprintf($base_url, escape($query),$page);
+  my $base_url = $full_url . "sns?w=$where&q=%s&p=%s&reply=%s";
+  my $search_url = sprintf($base_url, escape($query),$page,$reply);
   my $html = LWP::Simple::get($search_url);
   utf8::decode($html);
   return $html;
