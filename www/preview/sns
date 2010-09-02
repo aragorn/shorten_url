@@ -175,17 +175,24 @@ print <<END;
 END
 }
 
-foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..3) )
+my $page_count = $result->{page_count} || 0;
+$page_count = 4 if $where eq "tot" and $page_count > 4;
+$page_count = 30 if $page_count > 30;
+
+foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
 {
-  my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
+  my ($docid, $edocid, $content, $url, $image_url, $channel_url,
+      $writedttm, $sns_name, $reply, $retweet )
    = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
-       qw(docid edocid content url image_url channel_url writedttm sns_name);
-  my $twitter_link = "트위터 원문보기";
+       qw(docid edocid content url image_url channel_url writedttm sns_name reply retweet);
+  my $write_time = Daum::Breeze2::relative_time($writedttm, $result->{serverdttm});
+  my $channel_link = "&nbsp;";
+  my $source_class = "icoTwitter";
   $image_url = $image_url_default unless $image_url;
   my @clusters;
-  @clusters = @{ $doc->{clusters}->{data} }
-    if defined $doc->{clusters} and defined $doc->{clusters}->{data}
-       and ref $doc->{clusters}->{data} eq "ARRAY";
+  @clusters = @{ $doc->{clusters} }
+    if defined $doc->{clusters} 
+       and ref $doc->{clusters} eq "ARRAY";
   print <<END;
 <!--BEGIN-->
 <li>
@@ -197,7 +204,11 @@ foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..3) )
     <div class="commentBody">
       <p class="base desc">$content</p>
       <p class="info">
-        <a href="$channel_url" target="_blank" class="getTime">
+        <span class="source $source_class">
+          <a href="$channel_url" target="_blank" class="g_tit">$channel_link</a>
+        </span>
+        <span class="vline">|</span>
+        <a href="$channel_url" target="_blank" class="getTime">$write_time
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
           </span>
@@ -206,17 +217,33 @@ foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..3) )
         <span class="nick">
           <a href="$channel_url" target="_blank" class="g_tit">$sns_name</a>
         </span>
+END
+  if ($reply) {
+    print <<END;
         <span class="vline">|</span>
-        <span class="source icoTwitter">
-          <a href="$channel_url" target="_blank" class="g_tit">$twitter_link</a>
+        <span class="nick">
+          <a href="$channel_url" target="_blank" class="g_tit">답글보기</a>
         </span>
+END
+  }
+  print <<END;
       </p>
 END
 
-  print qq(<ul class="cluster">\n) if @clusters > 0;
+  print qq(<ul class="cluster">\n);
+  my $clusters = @clusters;
+  print <<END;
+      <li>관련글 $clusters\건
+        <a href="$channel_url" target="_blank" class="getTime">
+          <span id="getRealIndexTime_0" class="getTime">
+          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
+          </span>
+        </a>
+      </li>
+END
+
   foreach my $clustered ( @clusters )
   {
-=rem
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
@@ -233,9 +260,8 @@ END
         </span>
       </li>
 END
-=cut
   }
-  print qq(</ul>\n) if @clusters > 0;
+  print qq(</ul>\n);
 
   print <<END
     </div>
