@@ -153,4 +153,14 @@ sub commify {
   return $num;
 }
 
+sub strhncpy {
+  my $str = shift;
+  my $n = shift;
+  my @w = split(/\s+/o, $str);
+  foreach ( @w )
+  {
+    ;
+  }
+}
+
 1;
