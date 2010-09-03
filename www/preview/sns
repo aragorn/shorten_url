@@ -19,7 +19,7 @@ push @DEBUG, Daum::Breeze2::check_clock("elapsed time 1");
 my $bz2     = new Daum::Breeze2;
 my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
 #my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
-my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=200&q=%s&p=%s&child=y&submit=yes";
+my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&submit=yes";
 #my $base_url = "http://110.45.208.13:8080/xml/144.200.iphone.xml?q=%s&p=%s";
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $query   = param('q') || "iphone"; utf8::decode($query);
@@ -128,7 +128,10 @@ background:transparent url(http://imgsrc.search.daum-img.net/search_all/2009/ico
 
 #snsColl .collTot {margin-left: 17px;}
 #snsColl ul.cluster {margin-top: 8px;}
-#snsColl ul.cluster li.indent {xxbackground: url(http://imgsrc.search.daum-img.net/search_all/2009/icon/cb_search_icon_2009.gif);}
+#snsColl ul.cluster li.indent {
+  padding: 2px 0 2px 15px;
+  background: url(http://imgsrc.search.daum-img.net/search_all/2009/icon/cb_search_icon_2009.gif) no-repeat 1px -860px;
+}
 #snsColl ul.cluster a.cluster {font-weight: bold; color: #0307C3; }
 
 #DFMiniSlider {display:inline;margin-left:13px;}
@@ -214,14 +217,14 @@ foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
           <a href="$channel_url" target="_blank" class="g_tit">$channel_link</a>
         </span>
         <span class="vline">|</span>
-        <a href="$channel_url" target="_blank" class="getTime">$write_time
+        <a href="$url" target="_blank" class="getTime">$write_time
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
           </span>
         </a>
         <span class="vline">|</span>
         <span class="nick">
-          <a href="$channel_url" target="_blank" class="g_tit">$sns_name</a>
+          <a href="$url" target="_blank" class="g_tit">$sns_name</a>
         </span>
 END
   if ($reply) {
@@ -240,7 +243,7 @@ END
   my $clusters = @clusters;
   print <<END;
       <li>관련글 <a href="" class="cluster">$clusters</a>건
-        <a href="$channel_url" target="_blank" class="getTime">
+        <a href="$url" target="_blank" class="getTime">
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
           </span>
@@ -267,7 +270,7 @@ END
     my $write_time = Daum::Breeze2::relative_time($writedttm, $result->{serverdttm});
     print <<END;
       <li class="indent">$content
-        <a href="$channel_url" target="_blank" class="getTime">$write_time
+        <a href="$url" target="_blank" class="getTime">$write_time
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
           </span>
@@ -556,3 +559,7 @@ function _chgSortOrder(_opt){
 END
 
 }
+
+
+
+1;
