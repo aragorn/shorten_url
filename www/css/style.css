@@ -49,4 +49,39 @@ ul.page-nav li a.current { border: 2px solid #888; background-color: #bfb; color
 ul.page-nav li a:hover         { border: 1px solid #666; background-color: #ddf; color: black; }
 ul.page-nav li a.current:hover { border: 2px solid #444; background-color: #ddf; color: black; }
 
+.visualClear { clear: both; }
 
+iframe.timeline {
+  width: 100%;
+  height: 105px;
+  border: 0;
+  xxborder: 1px dotted blue;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overflow: hidden;
+  padding: 0;
+}
+#timeline-container {
+  position: relative;
+}
+
+#timeline-container div.panel.prev { position: relative; float: left; }
+#timeline-container div.panel {
+  position: absolute;
+  height: 20px;
+  font-size: 9pt;
+  xxoutline: 1px dotted red;
+}
+
+#timeline-container div.bar {
+  background-color: gray;
+  cursor: pointer;
+  float: left;
+  margin-right: 1px;
+  position: relative;
+  width: 1px;
+  height: 10px;
+  z-index: 10; 
+}
+
+div.debug.hidden { display: none; }
