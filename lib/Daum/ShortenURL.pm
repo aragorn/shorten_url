@@ -213,24 +213,46 @@ from url_translation A inner join
   map { push @binded_vars, $_ if $_; } ($website, $original_url);
 
   my ($urls, $list);
-  #if ($website) {
-    push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars, $from, $count);
-    $urls = $DBH_SLAVE->selectrow_array($counting_sql, {}, @binded_vars);
-    push @DEBUG, "counting failed - $urls: ".$DBH_SLAVE->errstr unless $urls;
-    $from = int( $urls / $count ) * $count if $from < 0;
-    $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, @binded_vars, $from, $count);
-    push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
-=rem
-  } else {
-    push @DEBUG, "listing_sql: $listing_sql", join(",", $from, $count);
-    $urls = $DBH_SLAVE->selectrow_array($counting_sql, {});
-    push @DEBUG, "counting failed - $urls: ".$DBH_SLAVE->errstr unless $urls;
-    $from = int( $urls / $count ) * $count if $from < 0;
-    $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, $from, $count);
-    push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
-  }
-=cut
+  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars, $from, $count);
+  $urls = $DBH_SLAVE->selectrow_array($counting_sql, {}, @binded_vars);
+  push @DEBUG, "counting failed - $urls: ".$DBH_SLAVE->errstr unless $urls;
+  $from = int( $urls / $count ) * $count if $from < 0;
+  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, @binded_vars, $from, $count);
+  push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
   return ($urls,$list);
+}
+
+sub timeline {
+  my ($self, $begin, $end, $roundup, $website, $original_url) = @_;
+  my $where = " where 1";
+  $where .= " and website like ?" if $website;
+  $where .= " and original_url like ?" if $original_url;
+  my $listing_sql = qq(select
+count(*) as count,
+date_format(A.created_on, '%m/%d %H:%i') as created_on,
+  ( unix_timestamp(A.created_on)
+    - mod(unix_timestamp(A.created_on), ?)
+  ) as count_id
+from url_translation A inner join 
+ (select url_id from url_translation
+  $where
+      and created_on between ? and ?
+  order by url_id asc
+ ) B on A.url_id = B.url_id
+group by 
+  ( unix_timestamp(A.created_on)
+    - mod(unix_timestamp(A.created_on), ?)
+  )
+);
+  my @binded_vars = ($roundup);
+  map { push @binded_vars, $_ if $_; } ($website, $original_url);
+  push @binded_vars, $begin, $end, $roundup;
+
+  my ($urls, $list);
+  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars);
+  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'count_id', {}, @binded_vars);
+  push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
+  return $list;
 }
 
 my $url_pattern = qr{
