@@ -88,7 +88,7 @@ exit;
 sub timeline_range
 {
   my $moment = shift || time;
-  my $begin = POSIX::strftime("%Y%m%d060000", localtime $moment);
+  my $begin = POSIX::strftime("%Y%m%d000000", localtime $moment);
   my $end   = POSIX::strftime("%Y%m%d235959", localtime $moment);
   my $roundup = 180;
   my @panels = ();
