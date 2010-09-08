@@ -249,6 +249,7 @@ END
           </span>
         </a>
 END
+  $child_count = 0 unless $child_count;
   if ($child_count > 0) {
     my $href = "?w=sns&q=".escape($query)."&reply=".escape($edocid);
     print <<END;
