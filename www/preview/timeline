@@ -7,13 +7,17 @@ use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use Daum;
 use Daum::ShortenURL;
 use POSIX;
 
 binmode STDOUT, ":encoding(UTF-8)";
+POSIX::setlocale( &POSIX::LC_ALL, "ko_KR.UTF-8" );
 
 our @DEBUG;
 our @fields_url_trans = qw(created_on count);
+our $panel_timerange = 60*60*6;
+our $bar_height = 70;
 
 my $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $website = param('website');
@@ -26,51 +30,105 @@ print start_html(-title=>'List of url_translation',
                  -style=>{-src=>"/css/style.css"},
       );
 
-my ($begin,$end) = timeline_range();
-my $list = $shorten->timeline($begin,$end,$website,$original_url);
+my ($begin,$end,$roundup,@panels) = timeline_range();
+my $list = $shorten->timeline($begin,$end,$roundup,$website,$original_url);
 
-my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
+my @list = map { $$list{$_} } sort { $a cmp $b } keys %$list;
+my ($max_count, $min_count, $avg_count, $std_count) = count_stat(@list);
+push @DEBUG, "max=$max_count, min=$min_count, avg=$avg_count, std=$std_count";
 
-print qq(<table class="list"><tr>\n);
-map { print "<td class=\"head $_\">$_</td>\n"; } @fields_url_trans;
-print "</tr>\n";
+print qq(<div id="timeline-container">\n);
+my $panel_left = 20;
+print qq(<div class="panel prev" style="width: $panel_left\x70x; padding-top: $bar_height\x70x;">&lt;&lt;</div>\n);
+my $panel_width = $panel_timerange / $roundup * 2;
+foreach ( @panels ) {
+  my $style = "left: $panel_left\x70x; width: $panel_width\x70x; margin-top: 5px; padding-top: $bar_height\x70x;";
+  print qq(<div class="panel" style="$style">$_</div>\n);
+  $panel_left += $panel_width;
+}
 
-foreach my $row ( @list )
+my $max_height = $bar_height;
+my $sqrt = 1;
+if ($std_count > $avg_count * 2) { $sqrt = 3; }
+elsif ($std_count > $avg_count ) { $sqrt = 2; }
+
+my $begin_epoch = Daum::dttm2epoch($begin);
+my $end_epoch   = Daum::dttm2epoch($end);
+for (my $t = $begin_epoch; $t <= $end_epoch; $t+= $roundup)
 {
-  my $redirect = "redirect?u=". escape($row->{shorten_url});
-  map { utf8::decode($row->{$_}); } qw(shorten_url original_url original_title website);
-  print "<tr>\n";
-  print qq(<td class="url_id">$row->{url_id}</td>\n);
-  print qq(<td class="shorten_url"><a href="$redirect" target="_blank">$row->{shorten_url}</a></td>\n);
-  print qq(<td class="original_url"><a href="$row->{original_url}" target="_blank">$row->{original_url}</a></td>\n);
-  print qq(<td class="original_title">$row->{original_title}</td>\n);
-  print qq(<td class="website"><a href="?website=$row->{website}">$row->{website}</a></td>\n);
-  map {
-    print qq(<td class="$_">$row->{$_}</td>\n);
-  }
-  qw(
-     created_on updated_on http_code mime_type source
-     has_no_info has_original_url has_title has_image
-     is_dead is_unreachable);
-  print "</tr>\n";
+  my $count_id = $t;
+  my $row = $list->{$count_id};
+#push @DEBUG, "count_id=$count_id";
+#}
+#foreach my $row ( @list )
+#{
+  my $height = 1;
+  my $count = $row->{count} || 0;
+  my $created_on = $row->{created_on} || "no data";
+  $height += int( $max_height * ( exp(1/$sqrt*log(0.01+$count)) / exp(1/$sqrt*log(1+$max_count)) ) );
+  #$height += $max_height * ( ($count) / ($max_count));
+  my $top = $max_height - $height;
+  print qq(<div class="bar" style="height: $height\x70x; top: $top\x70x;")
+       .qq( title="$count at $created_on"></div>\n);
+  #print qq(<div class="bar">$row->{created_on}</div>\n);
 }  
 
-print qq(</table>\n);
+print qq(<div class="visualClear"></div></div>\n);
 
-
+print qq(<div class="debug hidden">);
 my ($t2, $t02) = (new Benchmark, [gettimeofday]);
 print p({class=>'debug'}, "elapsed=", tv_interval($t01, $t02))."\n";
 print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
 map { print p({class=>'debug'}, $_); } $shorten->debug if url(-absolute=>1) =~ m/debug/;
 map { print p({class=>'debug'}, $_); } @DEBUG if url(-absolute=>1) =~ m/debug/;
+print qq(</div>);
 
 exit;
 
 sub timeline_range
 {
-  my $begin = shift || POSIX::strftime("%Y%m%d000000", localtime);
-  my $end = POSIX::strftime("%Y%m%d235959", localtime);
-  return ($begin, $end);
+  my $moment = shift || time;
+  my $begin = POSIX::strftime("%Y%m%d060000", localtime $moment);
+  my $end   = POSIX::strftime("%Y%m%d235959", localtime $moment);
+  my $roundup = 180;
+  my @panels = ();
+  foreach ( 0..3 ) {
+    my $string = POSIX::strftime("%p %l:%M",
+                    localtime (Daum::dttm2epoch($begin)+$panel_timerange*$_));
+    utf8::decode($string);
+    push @panels, $string;
+  }
+  return ($begin, $end, $roundup, @panels);
 }
 
+sub count_stat
+{
+  my @list = @_;
+  my ($max, $min, $avg, $std, $sum, $n) = ((map { $_[0]->{count} || 0 } 1..2), 0, 0, 0);
+  my $Q = 0;
+  for ( @list )
+  {
+    $n++;
+    $sum += $_->{count};
+    $max = $max > $_->{count} ? $max : $_->{count};
+    $min = $min < $_->{count} ? $min : $_->{count};
+    # http://en.wikipedia.org/wiki/Standard_deviation#Rapid_calculation_methods
+    # http://en.wikipedia.org/wiki/Moving_average
+    $Q += ($n - 1)/$n * ($_->{count} - $avg) * ($_->{count} - $avg);
+    $avg += ($_->{count} - $avg ) / $n;
+    $std = sqrt($Q/$n);
+#push @DEBUG, "stat count_id=$_->{count_id}";
+  }
+
+  return ($max, $min, $avg, $std);
+}
+
+sub panel {
+  my ($opt, $class, $style) = ({}, qq(class="panel"), "");
+  $opt = shift if ref $_[0] eq 'HASH';
+  $class = qq(class="panel $opt->{class}") if $opt->{class};
+  $style = qq(style="$opt->{style}") if $opt->{style};
+  return qq(<div $class $style>),
+         @_, qq(</div>);
+}
 1;

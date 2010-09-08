@@ -41,6 +41,8 @@ if ($website) { print h1("list of urls in $website: $commified_urls"); }
 else          { print h1("list of urls: $commified_urls"); }
 
 print get_search_form();
+print qq(<iframe class="timeline" src="timeline?).($q->query_string).
+      qq(" scrolling="no"></iframe>);
 print get_page_links($from, $count, $urls);
 
 my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
