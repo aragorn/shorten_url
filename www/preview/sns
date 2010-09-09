@@ -194,7 +194,7 @@ foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
       $writedttm, $sns_name, $reply, $retweet, $child_count )
    = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name reply retweet child_count);
-  my $write_time = Daum::Breeze2::relative_time($writedttm, $result->{serverdttm});
+  my $write_time = Daum::relative_time($writedttm, $result->{serverdttm});
   my $channel_link = "&nbsp;";
   my $source_class = "icoTwitter";
   $image_url = $image_url_default unless $image_url;
@@ -268,7 +268,7 @@ END
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
-    my $write_time = Daum::Breeze2::relative_time($writedttm, $result->{serverdttm});
+    my $write_time = Daum::relative_time($writedttm, $result->{serverdttm});
     print <<END;
       <li class="indent">$content
         <a href="$url" target="_blank" class="getTime">$write_time
