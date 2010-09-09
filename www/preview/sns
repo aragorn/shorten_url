@@ -127,12 +127,14 @@ background:transparent url(http://imgsrc.search.daum-img.net/search_all/2009/ico
 #newsColl .mlink:hover {text-decoration:underline !important;}
 
 #snsColl .collTot {margin-left: 17px;}
-#snsColl ul.cluster {margin-top: 8px;}
+#snsColl ul.cluster {margin-top: 4px;}
+#snsColl ul.cluster li { padding: 3px 0 3px 0; }
 #snsColl ul.cluster li.indent {
-  padding: 2px 0 2px 15px;
-  background: url(http://imgsrc.search.daum-img.net/search_all/2009/icon/cb_search_icon_2009.gif) no-repeat 1px -860px;
+  padding-left: 15px;
+  background: url(http://imgsrc.search.daum-img.net/search_all/2009/icon/cb_search_icon_2009.gif) no-repeat 1px -857px;
 }
-#snsColl ul.cluster a.cluster {font-weight: bold; color: #0307C3; }
+#snsColl ul.cluster .cluster {font-weight: bold; color: #33d; }
+#snsColl ul.cluster .cluster.dimmed { color: #88b; }
 
 #DFMiniSlider {display:inline;margin-left:13px;}
 #DFMiniSlider #sliderWrap {padding:0;border-bottom:0;}
@@ -241,14 +243,11 @@ END
 
   print qq(<ul class="cluster">\n);
   my $clusters = @clusters;
-  print <<END;
-      <li>관련글 <a href="" class="cluster">$clusters</a>건
-        <a href="$url" target="_blank" class="getTime">
-          <span id="getRealIndexTime_0" class="getTime">
-          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
-          </span>
-        </a>
-END
+  if ( $clusters > 0 ) {
+    print qq(<li class="related-summary">관련글 <a href="" class="cluster">$clusters</a>건\n);
+  } else {
+    print qq(<li class="related-summary">관련글 <span class="cluster dimmed">$clusters</span>건\n);
+  }
   $child_count = 0 unless $child_count;
   if ($child_count > 0) {
     my $href = "?w=sns&q=".escape($query)."&reply=".escape($edocid);
@@ -268,9 +267,11 @@ END
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
+    my $cut = Daum::Breeze2::strhncpy($content, 60);
     my $write_time = Daum::relative_time($writedttm, $result->{serverdttm});
     print <<END;
-      <li class="indent">$content
+      <li class="indent">$cut
+        <span class="vline">|</span>
         <a href="$url" target="_blank" class="getTime">$write_time
           <span id="getRealIndexTime_0" class="getTime">
           <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
