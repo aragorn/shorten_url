@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use CGI::Carp qw(fatalsToBrowser);
 use LWP::Simple qw(!head);
 use XML::Parser;
 use Data::Dumper;
@@ -561,7 +562,5 @@ function _chgSortOrder(_opt){
 END
 
 }
-
-
 
 1;
