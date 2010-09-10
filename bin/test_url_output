@@ -1,0 +1,33 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/perl/lib/perl5/site_perl';
+use lib $ENV{HOME}.'/shorten_url/lib';
+use strict;
+use warnings;
+use utf8;
+use Daum::ShortenURL;
+
+our @DEBUG;
+
+binmode STDOUT, ":encoding(UTF-8)";
+
+my $shorten = new Daum::ShortenURL;
+
+my $source_file = shift || "-";
+if ($source_file eq "-") { open(SRC, "-") or die "cannot open stdin: $!"; }
+else { open(SRC, $source_file) or die "cannot open file[$source_file]: $!"; }
+
+while ( <SRC> )
+{
+  chomp; next unless $_;
+  utf8::decode($_);
+  my ($shorten_url, $length, $original_url) = split(/\t/);
+
+  #my @matched = $shorten->match_url($fields{title});
+
+  printf "%s\t%s\t%s\t%s\n", $shorten_url, $length, $length, $original_url;
+}
+close(SRC);
+
+1;
+
