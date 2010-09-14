@@ -13,21 +13,34 @@ binmode STDOUT, ":encoding(UTF-8)";
 
 my $shorten = new Daum::ShortenURL;
 
-my $source_file = shift || "-";
-if ($source_file eq "-") { open(SRC, "-") or die "cannot open stdin: $!"; }
-else { open(SRC, $source_file) or die "cannot open file[$source_file]: $!"; }
+my $from  = 0;
+my $total = shift || 100;
+while ( 1 ) {
+  my $count = 100;
+  my ($urls, $list) = $shorten->list_by_url_length($from, $count);
+  my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
 
-while ( <SRC> )
-{
-  chomp; next unless $_;
-  utf8::decode($_);
-  my ($shorten_url, $length, $original_url) = split(/\t/);
-
-  #my @matched = $shorten->match_url($fields{title});
-
-  printf "%s\t%s\t%s\t%s\n", $shorten_url, $length, $length, $original_url;
+  foreach my $row ( @list )
+  {
+    map { utf8::decode($row->{$_}); } qw(shorten_url original_url);
+    my $shorten_url = $row->{shorten_url};
+    my $original_url = $row->{original_url};
+    my $modified_url = "";
+    eval {
+      local $SIG{'__WARN__'} = sub { die $_[0]; };
+      my $copied_url = $original_url;
+      $modified_url = $shorten->shorten_url($copied_url);
+      #my @matched = $shorten->match_url($fields{title});
+      printf "%s\t%s\t%s\n", $shorten_url, $modified_url, $original_url;
+    };
+    if ( $@ ) {
+      printf STDERR ">>> %s>>> [%s]\t[%s]\t[%s]\n\n\n", $@,
+        $shorten_url, $modified_url, $original_url;
+    }
+  }
+  $from += $count;
+  last if $from >= $total;
 }
-close(SRC);
-
+  
 1;
 
