@@ -10,13 +10,20 @@ use Daum::ShortenURL;
 our @DEBUG;
 
 binmode STDOUT, ":encoding(UTF-8)";
+binmode STDERR, ":encoding(UTF-8)";
+
+my $http_server = `hostname`; chomp $http_server;
+my $http_port   = `whoami` eq 'url_svc' ? 80 : 8080; chomp $http_port;
+#print STDERR "config of $http_server:$http_port\n";
+my %config = Daum::ShortenURL::config(join(":",$http_server,$http_port));
+#map { print STDERR "config $_=$config{$_}\n"; } sort keys %config;
 
 my $shorten = new Daum::ShortenURL;
 
-my $from  = 0;
+my $from  = shift || 0;
 my $total = shift || 100;
 while ( 1 ) {
-  my $count = 100;
+  my $count = $total < 100 ? $total : 100;
   my ($urls, $list) = $shorten->list_by_url_length($from, $count);
   my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
 
@@ -30,8 +37,10 @@ while ( 1 ) {
       local $SIG{'__WARN__'} = sub { die $_[0]; };
       my $copied_url = $original_url;
       $modified_url = $shorten->shorten_url($copied_url);
-      #my @matched = $shorten->match_url($fields{title});
-      printf "%s\t%s\t%s\n", $shorten_url, $modified_url, $original_url;
+      $shorten_url =~ s/\s+/ /os;
+      $original_url =~ s/\s+/ /os;
+      printf "%s\t%s\t%s\t%s\n", $shorten_url, $modified_url, length $original_url, $original_url
+      ;#  if $modified_url =~ m/^http/o;
     };
     if ( $@ ) {
       printf STDERR ">>> %s>>> [%s]\t[%s]\t[%s]\n\n\n", $@,
