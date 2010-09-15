@@ -63,7 +63,7 @@ sub add_tab {
   my $self = shift;
   my ($id, $name, $href) = @_;
   my $html = join("",
-    qq(<li class="tab_XXXX ">),
+    qq(<li class="tab_$id ">),
     qq(<a href="?$href">),
     qq($name</a></li>)
   );
@@ -97,15 +97,6 @@ sub searchTab {
   foreach my $tab ( @added_tab_list )
   {
     my ($id, $name, $href, $added_html) = map { $tab->{$_} } qw(id name href html);
-    my $url = url(-full=>1) . "?" . sprintf($href, escape($utf8_query));
-=rem
-    push @tab_html, join("",
-      qq(<li id="sb_$id">),
-      qq(<a href="$url"),
-      qq( id="sbar_$id" class="sbTab tabTxt">),
-      qq(<span class="sp_$id">$name</span></a></li>\n)
-    );
-=cut
     push @tab_html, sprintf($added_html, escape($utf8_query));
   }
   #map { push @DEBUG, p("tab_html=".$_); } @tab_html;
@@ -158,9 +149,10 @@ map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
   $html =~ s!(</ul>\s*<div class="wrap_more" id="wrapMore")!join("\n",@tab_html).$1!ioe;
 
   # change the selected tab
-  $html =~ s!(type="text/javascript">uccTabChg\("sbar_)\w+(")!$1.$selected_tab.$2!ioe
-    if $selected_tab;
-
+  if ($selected_tab) {
+    $html =~ s!(li class="tab_\w+ )\w+_on(")!$1.$2!ioe;
+    $html =~ s!(li class="tab_$selected_tab )(")!$1."tab_".$selected_tab."_on".$2!ioe;
+  }
   return $html;
 }
 
@@ -241,7 +233,7 @@ END
   # 실시간,소셜웹 컬렉션에서 트위터 본문 중 링크의 Style에 적용된다.
   push @html_head, <<END;
 <style type="text/css">
-.wrap_gnb .nav_gnb_deffense li.tab_XXXX a {
+.wrap_gnb .nav_gnb_deffense li.tab_sns a {
   background-position: -332px -465px;
   font-size: 9pt; font-weight: normal; xxbold;
   text-decoration: none; text-indent: 0;
@@ -249,7 +241,11 @@ END
   color: #777;
   line-height: 34px;
 }
-.wrap_gnb .nav_gnb_deffense li.tab_XXXX a { xxoutline: 2px dotted red; }
+.wrap_gnb .nav_gnb_deffense li.tab_sns.tab_sns_on a {
+  color: #5575f6;
+  font-weight: bold;
+}
+.wrap_gnb .nav_gnb_deffense li.tab_sns a { xxoutline: 2px dotted red; }
 .xx { -62 93 124 155 186 217 248 310 }
 
 a.g_tit.twitter:link,
@@ -281,7 +277,7 @@ sub html_body {
                             .qq(<div class="netizen_choose_line"></div>|)
                             .qq(<div id="line"></div>|)
                             .qq(<div class="wrap_folding.{200,500}</a> </div><div class="clr"></div>|)
-                            ."\s{50,100}";
+                            .qq(undetermined_separator);
 =rem
   my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|"
                             ."<!-- end 상세검색 -->|<!-- 가상 키보드 DIV START -->";
@@ -400,7 +396,7 @@ sub fetch_search_result {
   }
 
   my ($html_head, $html_head_close, $html_body, $html_body_close, $html_close)
-    = split(/(<\/head>|<\/body>)/o, $res->decoded_content);
+    = split(/(<\/head>|<\/body>)/o, utf8_string($res->content));
 
   if ($self->{benchmark} and $self->{gettimeofday})
   {
@@ -532,19 +528,9 @@ sub is_real_search_collection
 
 sub utf8_string {
   my $str = shift;
-  #my $charset = shift;
   utf8::decode($str);
   return $str if utf8::is_utf8($str);
-=rem
-  if ($charset =~ m/utf-8/iog)
-  {
-    push @DEBUG, "regard string as utf8";
-    #my $utf8 = Encode::decode("utf-8", $str);
-    my $utf8 = $str;
-    push @DEBUG, "utf8::decode=" . utf8::decode($utf8);
-    return $utf8;
-  }
-=cut
+
   push @DEBUG, "decode euc-kr string to utf8";
   my $utf8 = Encode::decode("cp949", $str);
   push @DEBUG, "utf8::is_utf8=" . utf8::is_utf8($utf8);
