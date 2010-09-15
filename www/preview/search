@@ -79,94 +79,26 @@ sub snsColl {
   my $search_url = sprintf($base_url, escape($query),$page,$reply);
   my $html = LWP::Simple::get($search_url);
   utf8::decode($html);
-  return $html;
 
-  my $h = "";
-  $h = <<END;
-<!-- SNS Coll -->
-<div id="snsColl">
-  <div class="collTitle">
-    <h2 class="fL">소셜웹 <span id="snsSQC_coll" style="display: none;"></span></h2>
-  </div>
-  <div class="collTot">
-    <ul class="uccUl">
-END
-  my @entries = (
-    { content_url=>'http://www.daum.net/', title=>'준비 중입니다.',
-      desc=>'아직 준비 중입니다.', meta_url=>'http://blog.daum.net/', meta_name=>'닉네임' },
-    { content_url=>'http://www.daum.net/', title=>'준비 중입니다.',
-      desc=>'아직 준비 중입니다.', meta_url=>'http://blog.daum.net/', meta_name=>'닉네임' },
-  );
-  foreach my $entry ( @entries ) { $h .= html_list_entry(%$entry); }
-  $h .= <<END;
-    </ul>
-  </div>
-  <div class="moreArea">
-    <a href="?w=sns&q=$query_escaped">소셜네트워크 더보기</a>
-  </div>
-</div>
-<!-- end SNS Coll -->
-<!-- 구분라인 -->
-<div id="line"></div>
-<hr>
-<!-- end 구분라인 -->
-END
-}
+  my $separator = qr{<li class="doc">|</li><!--class="doc"-->}o;
+  my @items = split(/($separator)/o, $html);
+  foreach ( @items ) {
+    next if m/$separator/o;
+    my ($class,$source) = ("","");
+    m!<span\sclass="nick">\s*<a\shref="([^"]+)"!isogx and $source = $1;
+    $class = "twitter" if index($source, "twitter.com")> 0;
 
-sub html_list_entry
-{
-  my %item = @_;
-  if (exists $item{source} and $item{source} eq 'twitter')
-  {
-    return <<END;
-<li>
-  <div class="divAniBox">
-    <div class="thumb fL">
-      <a href="$item{content_url}" target="_blank">
-        <img src="$item{thumbnail}" width="48" height="48" alt/>
-      </a>
-    </div>
-    <div class="commentBox">
-      <div class="commentBody">
-        <p class="base desc">$item{desc}</p>
-        <p class="info">
-          <a href="$item{content_url}" target="_blank" class="getTime">
-            <span id="getSNSIndexTime_9" class="getTime">
-              <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
-            </span>
-          </a>
-          <span class="vline"> | </span>
-          <span class="nick"><a href="$item{meta_url}" target="_blank" class="g_tit">$item{user_nick}</a></span>
-          <span class="vline"> | </span>
-          <span class="source"><a href="$item{content_url}" target="_blank" class="g_tit">트위터 원문보기</a></span>
-        </p>
-      </div>
-      <div class="commentFoor"></div>
-    </div>
-    <div class="clr"></div>
-  </div>
-</li>
-END
-  } else {
-    return <<END;
-<li>
-  <div class="divAniBox">
-    <div class="textBox">
-      <a href="$item{content_url}" class="gtit" target="_blank">$item{title}</a>
-      <p class="base desc">$item{desc}</p>
-      <p class="info">
-        <span id="getSNSIndexTime_9" class="getTime">
-          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
-        </span>
-        <span class="vline"> | </span>
-        <span class="source"><a href="$item{meta_url}" target="_blank" class="g_tit">$item{meta_name}</a></span>
-      </p>
-    </div>
-    <div class="clr"></div>
-  </div>
-</li>
-END
+    s{ ( <span \s class="base"> )      # $1
+       ( .{0,500} )                    # $2
+       ( </span><!--class="base"--> )  # $3
+     }
+    ! $1.make_autolink($2,$class,$source).$3 !isogxe;
   }
+  my $modified = join("<!-- XYZ -->", @items);
+
+  return $modified;
+
+  return $html;
 
 }
 

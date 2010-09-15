@@ -5,6 +5,7 @@ use Time::HiRes qw(gettimeofday tv_interval);
 my ($t1, $t01) = (new Benchmark, [gettimeofday]);
 use strict;
 use warnings;
+use utf8;
 use CGI qw(:standard escape unescape escapeHTML -oldstyle_urls);
 use Daum::ShortenURL;
 

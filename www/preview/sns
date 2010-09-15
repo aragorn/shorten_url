@@ -209,39 +209,37 @@ foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
        and ref $doc->{clusters} eq "ARRAY";
   print <<END;
 <!--BEGIN-->
-<li>
- <!--div class="divAniBox"-->
+<li class="doc">
   <div class="thumb fL">
    <a href="$channel_url" target="_blank"><img src="$image_url" width="48" height="48" alt/></a>
   </div>
   <div class="commentBox">
-    <div class="commentBody">
-      <p class="base desc">$content</p>
-      <p class="info">
-        <span class="source $source_class">
-          <a href="$channel_url" target="_blank" class="g_tit">$channel_link</a>
+    <span class="base">$content</span><!--class="base"-->
+    <p class="info">
+      <span class="source $source_class">
+        <a href="$channel_url" target="_blank" class="g_tit">$channel_link</a>
+      </span>
+      <span class="vline">|</span>
+      <a href="$url" target="_blank" class="getTime">$write_time
+        <span id="getRealIndexTime_0" class="getTime">
+        <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
         </span>
-        <span class="vline">|</span>
-        <a href="$url" target="_blank" class="getTime">$write_time
-          <span id="getRealIndexTime_0" class="getTime">
-          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
-          </span>
-        </a>
-        <span class="vline">|</span>
-        <span class="nick">
-          <a href="$url" target="_blank" class="g_tit">$sns_name</a>
-        </span>
+      </a>
+      <span class="vline">|</span>
+      <span class="nick">
+        <a href="$url" target="_blank" class="g_tit">$sns_name</a>
+      </span>
 END
   if ($reply) {
     print <<END;
-        <span class="vline">|</span>
-        <span class="nick">
-          <a href="$channel_url" target="_blank" class="g_tit">답글보기</a>
-        </span>
+      <span class="vline">|</span>
+      <span class="nick">
+        <a href="$channel_url" target="_blank" class="g_tit">답글보기</a>
+      </span>
 END
   }
   print <<END;
-      </p>
+    </p>
 END
 
   print qq(<ul class="cluster">\n);
@@ -255,14 +253,14 @@ END
   if ($child_count > 0) {
     my $href = "?w=sns&q=".escape($query)."&reply=".escape($edocid);
     print <<END;
-        <span class="vline">|</span>
-        <span class="child">
-          <a href="$href" class="g_tit">이 글에 달린 답글보기</a>
-        </span>
+      <span class="vline">|</span>
+      <span class="child">
+        <a href="$href" class="g_tit">이 글에 달린 답글보기</a>
+      </span>
 END
   }
   print <<END;
-      </li>
+    </li>
 END
 
   foreach my $clustered ( @clusters )
@@ -273,30 +271,26 @@ END
     my $cut = Daum::Breeze2::strhncpy($content, 60);
     my $write_time = Daum::relative_time($writedttm, $result->{serverdttm});
     print <<END;
-      <li class="indent">$cut
-        <span class="vline">|</span>
-        <a href="$url" target="_blank" class="getTime">$write_time
-          <span id="getRealIndexTime_0" class="getTime">
-          <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
-          </span>
-        </a>
-        <span class="vline">|</span>
-        <span class="nick">
-          <a href="$channel_url" target="_blank" class="g_tit">$sns_name</a>
+    <li class="indent"><span class="base">$cut</span><!--class="base"-->
+      <span class="vline">|</span>
+      <a href="$url" target="_blank" class="getTime">$write_time
+        <span id="getRealIndexTime_0" class="getTime">
+        <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
         </span>
-      </li>
+      </a>
+      <span class="vline">|</span>
+      <span class="nick">
+        <a href="$channel_url" target="_blank" class="g_tit">$sns_name</a>
+      </span>
+    </li>
 END
   }
-  print qq(</ul>\n);
+  print qq(</ul><!--class="cluster"-->\n);
 
   print <<END
-    </div>
-    <div class="commentFoot"></div>
   </div><!--class="commentBox"-->
-  <div class="clr"></div>
-  <div class="hline"></div>
- <!--/div--divAniBox-->
-</li>
+  <div class="hline clr"></div>
+</li><!--class="doc"-->
 <!--END-->
 END
 }
