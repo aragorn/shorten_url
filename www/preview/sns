@@ -8,6 +8,7 @@ use CGI::Carp qw(fatalsToBrowser);
 use LWP::Simple qw(!head);
 use XML::Parser;
 use Data::Dumper;
+use Daum;
 use Daum::Breeze2;
 
 Daum::Breeze2::init_benchmark();
@@ -268,7 +269,7 @@ END
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
-    my $cut = Daum::Breeze2::strhncpy($content, 60);
+    my $cut = Daum::strhncpy($content, 60);
     my $write_time = Daum::relative_time($writedttm, $result->{serverdttm});
     print <<END;
     <li class="indent"><span class="base">$cut</span><!--class="base"-->
