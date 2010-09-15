@@ -34,6 +34,7 @@ my $fsearch = new Daum::FederatedSearch(query=>$q, benchmark=>$t1, gettimeofday=
 push @BENCHMARK, p("after new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
 $fsearch->handler('realTimeColl', \&realTimeColl);
+$fsearch->handler('liveSearchColl', \&realTimeColl);
 $fsearch->handler('snsColl', \&snsColl);
 $fsearch->add_tab('sns', '소셜웹', 'w=sns&q=%s&enc=utf8&nul_search=btn');
 
@@ -175,17 +176,17 @@ sub realTimeColl {
   my $self = shift;
   my $html = shift;
 
-  my $separator = qr{<\/li>\s*<li>|<li>|<\/li>}o;
+  my $separator = qr{<\/li>\s*<li class="mb_basic">|<li class="mb_basic">|<\/li>}o;
   my @items = split(/($separator)/o, $html);
   foreach ( @items ) {
     next if m/$separator/o;
     my ($class,$source) = ("","");
-    m!<p\sclass="info">\s*<a\shref="([^"]+)"!isogx and $source = $1;
+    m!<span\sclass="wrap_time">\s*<a\shref="([^"]+)"!isogx and $source = $1;
     $class = "twitter" if index($source, "twitter.com")> 0;
 
-    s{ (?<=<p\sclass="base\sdesc"> )   # not $1
+    s{ (?<=<span \s class="base"> )   # not $1
        ( .{0,500} )                    # $1
-       (?=</p> \s* <p\sclass="info">)  # not $2
+       (?=</span> \s* <span \s class="txt_source">)  # not $2
      }
     ! make_autolink($1,$class,$source) !isogxe;
   }
@@ -219,11 +220,11 @@ sub make_autolink {
   s{ <a \s+ class="stit" 
         \s+ href=" \s*
         (https?://
-         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{1,200} )?
+         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{0,200} )?
         ) \s* "                       # $1
         \s+ target="_blank"
         (?: \s+ class="stit" )?> \s*
-        ( (?: \w|<b>|</b>|[:/-]|[^\s\)\>\<] ){1,200}
+        ( (?: \w|<b>|</b>|[:/-]|[^\s\)\>\<] ){0,200}
         )                             # $2
         \s* </a>
    } ! url_link($1,$2,$class,$source) !isogxe;
