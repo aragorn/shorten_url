@@ -63,10 +63,9 @@ sub add_tab {
   my $self = shift;
   my ($id, $name, $href) = @_;
   my $html = join("",
-    qq(<li id="sb_dir">),
-    qq(<a href="$href"),
-    qq( id="sbar_$id" class="sbTab tabTxt">),
-    qq(<span class="sp_$id">$name</span></a></li>)
+    qq(<li class="tab_XXXX ">),
+    qq(<a href="?$href">),
+    qq($name</a></li>)
   );
   push @added_tab_list, { id=>$id, name=>$name, href=>$href, html=>$html };
 }
@@ -97,14 +96,17 @@ sub searchTab {
   my $utf8_query = utf8_string($query);
   foreach my $tab ( @added_tab_list )
   {
-    my ($id, $name, $href) = map { $tab->{$_} } qw(id name href);
+    my ($id, $name, $href, $added_html) = map { $tab->{$_} } qw(id name href html);
     my $url = url(-full=>1) . "?" . sprintf($href, escape($utf8_query));
+=rem
     push @tab_html, join("",
       qq(<li id="sb_$id">),
       qq(<a href="$url"),
       qq( id="sbar_$id" class="sbTab tabTxt">),
       qq(<span class="sp_$id">$name</span></a></li>\n)
     );
+=cut
+    push @tab_html, sprintf($added_html, escape($utf8_query));
   }
   #map { push @DEBUG, p("tab_html=".$_); } @tab_html;
   my $where = param('w') || "";
@@ -151,7 +153,9 @@ map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
 =cut
   #map { push @DEBUG, p("id=".$_->{id}); } @tab_list;
 
-  $html =~ s!(<div class="btab"><span class="btab"></span></div>)!join("\n",@tab_html).$1!ioe;
+  #$html =~ s!(</ul>\s*</div>\s*<ul class="nav_gnb_deffense">)!join("\n",@tab_html).$1!ioe;
+  #$html =~ s!(<li class="tab_yellow_tip_off")!join("\n",@tab_html).$1!ioe;
+  $html =~ s!(</ul>\s*<div class="wrap_more" id="wrapMore")!join("\n",@tab_html).$1!ioe;
 
   # change the selected tab
   $html =~ s!(type="text/javascript">uccTabChg\("sbar_)\w+(")!$1.$selected_tab.$2!ioe
@@ -237,6 +241,17 @@ END
   # 실시간,소셜웹 컬렉션에서 트위터 본문 중 링크의 Style에 적용된다.
   push @html_head, <<END;
 <style type="text/css">
+.wrap_gnb .nav_gnb_deffense li.tab_XXXX a {
+  background-position: -332px -465px;
+  font-size: 9pt; font-weight: normal; xxbold;
+  text-decoration: none; text-indent: 0;
+  vertical-align: middle;
+  color: #777;
+  line-height: 34px;
+}
+.wrap_gnb .nav_gnb_deffense li.tab_XXXX a { xxoutline: 2px dotted red; }
+.xx { -62 93 124 155 186 217 248 310 }
+
 a.g_tit.twitter:link,
 a.g_tit.twitter:visited { color: #2276BB; color: #09c; }
 a.stit.twitter:link,
