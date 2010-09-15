@@ -202,7 +202,7 @@ sub html_head {
   push @html_head, <<END;
 <script type="text/javascript"><!--//
 \$(document).ready(function() {
-  \$('p.base.desc a.stit').cluetip({
+  \$('span.base a.stit').cluetip({
 /*
      width:380,
      sticky:false,
@@ -276,6 +276,8 @@ sub html_body {
   my $collection_separator = "<!-- // daumHead -->|<!-- // daumGnb -->|"
                             .qq(<div class="netizen_choose_line"></div>|)
                             .qq(<div id="line"></div>|)
+                            .qq(<div class="line_bold"></div>|)
+                            .qq(</div><!-- // content_top -->|)
                             .qq(<div class="wrap_folding.{200,500}</a> </div><div class="clr"></div>|)
                             .qq(undetermined_separator);
 =rem

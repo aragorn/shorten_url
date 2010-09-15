@@ -101,8 +101,8 @@ print "$path started - unexpected\n";
                    });
   $parser->parse($xml);
 
-  my $page_start = $result{page_count} * ($page -1) + 1;
-  my $page_end   = $result{page_count} + $page_start - 1;
+  my $page_start = ($result{page_count} ||0) * ($page -1) + 1;
+  my $page_end   = ($result{page_count} ||0) + $page_start - 1;
   $result{page_start} = $page_start;
   $result{page_end}   = $page_end;
   $result{serverdttm} = Daum::dttm_now();
