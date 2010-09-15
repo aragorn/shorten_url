@@ -18,6 +18,7 @@ our %collection_handler = (
   name => undef,
   realTimeColl => \&realTimeColl,
   uccBarBotN   => \&searchTab,
+  daumGnb      => \&searchTab,
   defaultColl  => \&defaultColl,
   daumHead     => \&daumHead,
   #realtimeColl => undef,
@@ -261,8 +262,15 @@ sub html_body {
   my $selected_coll = $selected_tab . "Coll";
   push @DEBUG, p("selected_tab in body=$selected_tab");
 
+  my $collection_separator = "<!-- // daumHead -->|<!-- // daumGnb -->|"
+                            .qq(<div class="netizen_choose_line"></div>|)
+                            .qq(<div id="line"></div>|)
+                            .qq(<div class="wrap_folding.{200,500}</a> </div><div class="clr"></div>|)
+                            ."\s{50,100}";
+=rem
   my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|"
                             ."<!-- end 상세검색 -->|<!-- 가상 키보드 DIV START -->";
+=cut
   if ($self->{benchmark} and $self->{gettimeofday})
   {
     my($t2, $t02) = (new Benchmark, [gettimeofday]);
@@ -270,7 +278,13 @@ sub html_body {
                    tv_interval($self->{gettimeofday}, $t02),
                    timestr(timediff($t2, $self->{benchmark})));
   }
-  my @htmls = map { s/^\s*|\s*$//og; $_; } split(/$collection_separator/o, $html_body);
+  my @splitted = map { s/^\s*|\s*$//og; $_; } split(m{($collection_separator)}os, $html_body);
+  my @htmls;
+  foreach ( @splitted )
+  {
+    if ( m{$collection_separator}os ) { $htmls[$#htmls] .= $_; }
+    else                              { push @htmls, $_; }
+  }
   my @collections;
 
   my $first_search_coll = 0;
@@ -285,7 +299,7 @@ sub html_body {
     my $name = "unknown";
     my $div_id = "unknown";
     m/<!--\s*([\w\s]{1,50})\s*-->/io and $name = $1;
-    m/<div id="(\w+Coll|netizen_choose|detailSearchN|uccBarBotN|daumHead)"/io and $div_id = $1;
+    m/<div (?:id|class)="(\w+Coll|netizen_choose|detailSearchN|daumHead|daumGnb|daumFoot|content_top|searchCutOff)"/io and $div_id = $1;
 
     $first_search_coll ++ if $div_id =~ m/Coll$/o;
 

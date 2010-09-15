@@ -146,4 +146,18 @@ sub strhncpy {
   return join("", @to);
 }
 
+sub hlength {
+  my $str = shift;
+  my @w = unpack("U0U*", $str);
+  my $count = 0;
+  foreach ( @w )
+  {
+    $_ = pack("U0U", $_);
+    if    ( m/\p{Hangul}/o )     { $count += 2; }
+    elsif ( m/\p{WhiteSpace}/o ) { $count += 1; }
+    else                         { $count += 1; }
+  }
+  return $count;
+}
+
 1;
