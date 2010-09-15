@@ -80,6 +80,14 @@ sub DESTROY {
 }
 =cut
 
+sub config {
+  my $http_host = shift;
+  if ($http_host and exists $CONFIG_ALL{$http_host})
+  { %CONFIG = %{$CONFIG_ALL{$http_host}}; }
+
+  return %CONFIG;
+}
+
 sub debug {
   return @DEBUG;
 }
@@ -254,6 +262,33 @@ group by
   return $list;
 }
 
+sub list_by_url_length {
+  my ($self, $from, $count, $website, $original_url) = @_;
+  my $where = " where 1";
+  $where .= " and website like ?" if $website;
+  $where .= " and original_url like ?" if $original_url;
+  my $counting_sql = "select count(*) from url_translation $where";
+  my $listing_sql = qq(select * 
+from url_translation A inner join 
+ (select url_id from url_translation
+  $where
+  order by length(original_url) desc
+  limit ?, ?
+ ) B on A.url_id = B.url_id
+);
+  my @binded_vars;
+  map { push @binded_vars, $_ if $_; } ($website, $original_url);
+
+  my ($urls, $list);
+  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars, $from, $count);
+  $urls = $DBH_SLAVE->selectrow_array($counting_sql, {}, @binded_vars);
+  push @DEBUG, "counting failed - $urls: ".$DBH_SLAVE->errstr unless $urls;
+  $from = int( $urls / $count ) * $count if $from < 0;
+  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, @binded_vars, $from, $count);
+  push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
+  return ($urls,$list);
+}
+##############################################################################
 my $url_pattern = qr{
    (?xi)
      \b
@@ -299,6 +334,89 @@ sub match_url {
   if ( $@ ) { print "ERROR: $@\n-->$_"; find_error_token($_); }
   #foreach my $m ( @matched ) { print "m: $m\n"; }
   return @matched;
+}
+
+sub shorten_url
+{
+  my $self = shift;
+  my $url  = shift;
+  $_ = $url;
+
+  my @u = ("","","","","","");
+  if ( m{^(https?://)(.+)$}o ) { $u[1] = $1; $url = $2; } # protocol
+  else                         { return $url; }
+
+  my $qm = index $url, '?';
+  if ( $qm > 0 )    {
+    $u[5] = substr $url, $qm;                 # query string
+    $url = substr $url, 0, $qm;
+  } else {
+    ; # do nothing
+  }
+
+  my $slash = index $url, '/';
+  if ( $slash > 0 )    {
+    $u[2] = substr $url, 0, $slash;           # domain name
+    $url = substr $url, $slash;
+  } else {
+    $u[2] = $url;
+    ; # do nothing
+  }
+
+  $slash = rindex $url, '/';
+  if ( $slash > 0 )    {
+    $u[3] = substr $url, 0, $slash+1;           # path
+    $u[4] = substr $url, $slash+1;              # file name
+  } else {
+    $u[3] = "/";
+    $u[4] = substr $url, 1;
+    ; # do nothing
+  }
+
+  @u = map { m/%/o ? CGI::unescape($_) : $_ } @u;
+  map { utf8::decode($_) } @u;
+  @u = map { s/\s+/ /os; $_; } @u;
+  #return join(" : ", map(+( $u[$_] || "" ),1..5));
+  my @s = @u;
+  my @m = @u;
+
+  $m[2] = substr($u[2],-23, 23) . "../" if length $u[2] > 25; # domain
+  $m[3] = substr($u[3],  0, 23) . "../" if length $u[3] > 25; # path
+  $m[4] = substr($u[4],  0, 33) . ".."  if length $u[4] > 35; # page
+  $m[5] = substr($u[5],  0, 33) . ".."  if length $u[5] > 35; # query
+  
+  $s[2] = substr($u[2],-15, 15) . "../" if length $u[2] > 17; # domain
+  $s[3] = substr($u[3],  0,  7) . "../" if length $u[3] >  9; # path
+  $s[4] = substr($u[4],  0, 33) . ".."  if length $u[4] > 35; # page
+  $s[5] = substr($u[5],  0, 16) . ".."  if length $u[5] > 18; # query
+
+  $url = join("", "", $u[2], $u[3], $u[4], $u[5]);
+
+  $url = join("", "", $u[2], $u[3], $u[4], $m[5]) if length $url > 70;
+  $url = join("", "", $u[2], $m[3], $u[4], $m[5]) if length $url > 70;
+
+  $url = join("", "", $u[2], $u[3], $u[4], $s[5]) if length $url > 70;
+  $url = join("", "", $u[2], $s[3], $u[4], $s[5]) if length $url > 70;
+
+  $url = join("", "", $m[2], $u[3], $u[4], $s[5]) if length $url > 70;
+  $url = join("", "", $s[2], $s[3], $u[4], $s[5]) if length $url > 70;
+
+  $url = join("", "", $s[2], $s[3], $s[4], $s[5]) if length $url > 82;
+  $url = join("", "", $s[2], $s[3], $s[4], $s[5] ? "?.." : "") if length $url > 82;
+  $url = join("", "", $s[2], $s[3] ? "../" : "", $s[4], $s[5] ? "?.." : "") if length $url > 82;
+  $url = join("", "", $s[2], ($s[3] || $s[4] || $s[5] ) ? "..." : "") if length $url > 82;
+  push @DEBUG, "length of url: ". length $url;
+=rem
+    $url = join("",
+      #span({class=>'dimmed'}, $1),
+      $2,
+      span({class=>'dimmed'}, $3),
+      $4,
+      span({class=>'dimmed'}, $5),
+    );
+  };
+=cut
+  return $url;
 }
 
 sub find_error_token {
