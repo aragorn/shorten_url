@@ -273,13 +273,18 @@ sub html_body {
   my $selected_coll = $selected_tab . "Coll";
   push @DEBUG, p("selected_tab in body=$selected_tab");
 
-  my $collection_separator = "<!-- // daumHead -->|<!-- // daumGnb -->|"
-                            .qq(<div class="netizen_choose_line"></div>|)
-                            .qq(<div id="line"></div>|)
-                            .qq(<div class="line_bold"></div>|)
-                            .qq(</div><!-- // content_top -->|)
-                            .qq(<div class="wrap_folding.{200,500}</a> </div><div class="clr"></div>|)
-                            .qq(undetermined_separator);
+  my $begin_separator =  qq(<div class="content_main">XXX|)
+                        .qq(</div><!-- // content_main -->|)
+                        .qq(undetermined_separator);
+  my $end_separator   = "<!-- // daumHead -->|<!-- // daumGnb -->|"
+                        #.qq(<div class="netizen_choose_line"></div>|)
+                        .qq(<div id="line"></div>|)
+                        .qq(<div class="line_bold"></div>|)
+                        #.qq(</div><!-- // content_top -->|)
+                        .qq(<div class="content_main">|)
+                        #.qq(<!-- // content_main -->|)
+                        .qq(<div class="wrap_folding.{200,500}</a> </div><div class="clr"></div>|)
+                        .qq(undetermined_separator);
 =rem
   my $collection_separator = "<!-- 통합검색결과 -->|<!-- end 구분라인 -->|"
                             ."<!-- end 상세검색 -->|<!-- 가상 키보드 DIV START -->";
@@ -291,12 +296,13 @@ sub html_body {
                    tv_interval($self->{gettimeofday}, $t02),
                    timestr(timediff($t2, $self->{benchmark})));
   }
-  my @splitted = map { s/^\s*|\s*$//og; $_; } split(m{($collection_separator)}os, $html_body);
-  my @htmls;
+  my @splitted = map { s/^\s*|\s*$//og; $_; } split(m{($begin_separator|$end_separator)}os, $html_body);
+  my @htmls; my $begin_string;
   foreach ( @splitted )
   {
-    if ( m{$collection_separator}os ) { $htmls[$#htmls] .= $_; }
-    else                              { push @htmls, $_; }
+    if    ( m{$begin_separator}os ) { $begin_string    = $_; }
+    elsif ( m{$end_separator}os )   { $htmls[$#htmls] .= $_; $begin_string=""; }
+    else                            { push @htmls, $begin_string.$_; $begin_string=""; }
   }
   my @collections;
 
@@ -312,7 +318,10 @@ sub html_body {
     my $name = "unknown";
     my $div_id = "unknown";
     m/<!--\s*([\w\s]{1,50})\s*-->/io and $name = $1;
-    m/<div (?:id|class)="(\w+Coll|netizen_choose|detailSearchN|daumHead|daumGnb|daumFoot|content_top|searchCutOff)"/io and $div_id = $1;
+    m/<div \s (?:id|class)="
+        (\w+Coll  | netizen_choose | detailSearchN | 
+         daumHead | daumGnb | daumFoot |
+         content_top | sugFootArea | searchCutOff )"/iox and $div_id = $1;
 
     $first_search_coll ++ if $div_id =~ m/Coll$/o;
 
