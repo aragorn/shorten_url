@@ -57,7 +57,6 @@ print <<END;
 <style type="text/css">
 /*
 #snsColl li {outline: 1px solid red;}
-#snsColl li .commentBox {float:left;width:654px;}
 */
 
 #snsColl .collTitle {overflow:visible;margin-bottom:12px;}
@@ -136,6 +135,9 @@ background:transparent url(http://imgsrc.search.daum-img.net/search_all/2009/ico
 }
 #snsColl ul.cluster .cluster {font-weight: bold; color: #33d; }
 #snsColl ul.cluster .cluster.dimmed { color: #88b; }
+END
+
+print <<END;
 
 #DFMiniSlider {display:inline;margin-left:13px;}
 #DFMiniSlider #sliderWrap {padding:0;border-bottom:0;}
