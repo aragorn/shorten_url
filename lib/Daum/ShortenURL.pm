@@ -5,9 +5,9 @@ use warnings;
 use utf8;
 use charnames ":full";
 use LWP::UserAgent;
-use Encode qw/encode decode/;
 use DBI;
 use CGI;
+use Daum;
 
 use vars qw(%CONFIG %CONFIG_ALL @DEBUG);
 our $VERSION = '0.1';
@@ -137,7 +137,7 @@ sub fetch {
     my $status = $res->status_line;
     $row->{http_code}      = $code;
     $row->{mime_type}      = $type;
-    $row->{original_title} = utf8_string($title,$charset);
+    $row->{original_title} = Daum::utf8_string($title,$charset);
     $row->{original_url}   = $res->request->uri;
     $row->{charset}        = $charset;
     #my $content  = $res->decoded_content;
@@ -149,7 +149,7 @@ sub fetch {
   } elsif ($code == 200 and $type =~ m!^text/html!og )
   {
     my $title = $res->header('title');
-    my $utf8  = utf8_string($title,$charset) || "제목이 없습니다";
+    my $utf8  = Daum::utf8_string($title,$charset) || "제목이 없습니다";
     my $uri   = $res->request->uri;
     my $encoding = $res->content_encoding;
   } elsif ($res->request->uri =~ m#i.wik.im/\w+#oi ) {
@@ -380,26 +380,29 @@ sub shorten_url
   my @s = @u;
   my @m = @u;
 
-  $m[2] = substr($u[2],-23, 23) . "../" if length $u[2] > 25; # domain
+  $m[2] = ".." . substr($u[2],-23, 23)  if length $u[2] > 25; # domain
   $m[3] = substr($u[3],  0, 23) . "../" if length $u[3] > 25; # path
   $m[4] = substr($u[4],  0, 33) . ".."  if length $u[4] > 35; # page
   $m[5] = substr($u[5],  0, 33) . ".."  if length $u[5] > 35; # query
-  
-  $s[2] = substr($u[2],-15, 15) . "../" if length $u[2] > 17; # domain
-  $s[3] = substr($u[3],  0,  7) . "../" if length $u[3] >  9; # path
-  $s[4] = substr($u[4],  0, 33) . ".."  if length $u[4] > 35; # page
+                                        
+  $s[2] = ".." . substr($u[2],-20, 20)  if length $u[2] > 22; # domain
+  $s[3] = substr($u[3],  0, 10) . "../" if length $u[3] > 12; # path
+  $s[4] = substr($u[4],  0, 20) . ".."  if length $u[4] > 22; # page
   $s[5] = substr($u[5],  0, 16) . ".."  if length $u[5] > 18; # query
 
   $url = join("", "", $u[2], $u[3], $u[4], $u[5]);
 
-  $url = join("", "", $u[2], $u[3], $u[4], $m[5]) if length $url > 70;
-  $url = join("", "", $u[2], $m[3], $u[4], $m[5]) if length $url > 70;
+  $url = join("", "", $u[2], $u[3], $u[4], $m[5]) if length $url > 75;
+  $url = join("", "", $u[2], $m[3], $u[4], $m[5]) if length $url > 75;
 
-  $url = join("", "", $u[2], $u[3], $u[4], $s[5]) if length $url > 70;
-  $url = join("", "", $u[2], $s[3], $u[4], $s[5]) if length $url > 70;
+  $url = join("", "", $u[2], $m[3], $u[4], $s[5]) if length $url > 75;
+  $url = join("", "", $u[2], $s[3], $u[4], $s[5]) if length $url > 75;
 
-  $url = join("", "", $m[2], $u[3], $u[4], $s[5]) if length $url > 70;
-  $url = join("", "", $s[2], $s[3], $u[4], $s[5]) if length $url > 70;
+  $url = join("", "", $u[2], $s[3], $m[4], $s[5]) if length $url > 75;
+  $url = join("", "", $m[2], $s[3], $u[4], $s[5]) if length $url > 75;
+  $url = join("", "", $m[2], $s[3], $m[4], $s[5]) if length $url > 75;
+
+  $url = join("", "", $s[2], $s[3], $m[4], $s[5]) if length $url > 75;
 
   $url = join("", "", $s[2], $s[3], $s[4], $s[5]) if length $url > 82;
   $url = join("", "", $s[2], $s[3], $s[4], $s[5] ? "?.." : "") if length $url > 82;
@@ -442,24 +445,6 @@ sub find_error_token {
 
 
 ##########################################################################################
-sub utf8_string {
-  my $str = shift;
-  my $charset = shift;
-  return $str if utf8::is_utf8($str);
-  if ($charset =~ m/utf-8/ig)
-  {
-    push @DEBUG, "regard string as utf8";
-    #my $utf8 = Encode::decode("utf-8", $str);
-    my $utf8 = $str;
-    push @DEBUG, "utf8::decode=" . utf8::decode($utf8);
-    return $utf8;
-  }
-
-  push @DEBUG, "decoded euc-kr string to utf8";
-  my $utf8 = Encode::decode("cp949", $str);
-  push @DEBUG, "utf8::is_utf8=" . utf8::is_utf8($utf8);
-  return $utf8;
-}
 
 sub get_website {
   my $url = shift;

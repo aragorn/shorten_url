@@ -128,36 +128,4 @@ sub commify {
   return $num;
 }
 
-sub strhncpy {
-  my $str = shift;
-  my $n = shift;
-  my @w = unpack("U0U*", $str);
-  my $copied = 0;
-  my @to;
-  foreach ( @w )
-  {
-    $_ = pack("U0U", $_); push @to, $_;
-    if    ( m/\p{Hangul}/o )     { $copied += 2; }
-    elsif ( m/\p{WhiteSpace}/o ) { $copied += 1; }
-    else                         { $copied += 1; }
-    last if $copied > $n;
-  }
-  push @to, ".." if length $str > $copied;
-  return join("", @to);
-}
-
-sub hlength {
-  my $str = shift;
-  my @w = unpack("U0U*", $str);
-  my $count = 0;
-  foreach ( @w )
-  {
-    $_ = pack("U0U", $_);
-    if    ( m/\p{Hangul}/o )     { $count += 2; }
-    elsif ( m/\p{WhiteSpace}/o ) { $count += 1; }
-    else                         { $count += 1; }
-  }
-  return $count;
-}
-
 1;
