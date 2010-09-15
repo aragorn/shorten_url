@@ -7,6 +7,7 @@ my ($t1, $t01) = (new Benchmark, [gettimeofday]);
 use strict;
 use warnings;
 use utf8;
+use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use LWP::UserAgent;
 use LWP::Simple qw(!head);
@@ -22,7 +23,8 @@ push @BENCHMARK, p("before new CGI:", tv_interval($t01, $t02), timestr(timediff(
 our $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
-
+#warningsToBrowser(1);
+ 
 ($t2, $t02) = (new Benchmark, [gettimeofday]);
 push @BENCHMARK, p("before new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
@@ -42,6 +44,7 @@ if ($fsearch->fetch_search_result($q)) {
   print $fsearch->html_head;
   print $fsearch->html_body;
 
+  print qq(<div class="clr"></div><div style="position: relative; top: 160px;">);
   ($t2, $t02) = (new Benchmark, [gettimeofday]);
   push @BENCHMARK, p("after print html_body:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
@@ -53,6 +56,7 @@ if ($fsearch->fetch_search_result($q)) {
     print p("elapsed=", tv_interval($t01, $t02))."\n";
     print p("benchmark=", timestr(timediff($t2, $t1)))."\n";
   }
+  print qq(</div>);
   print $fsearch->html_body_close;
 } else {
   print $fsearch->status_line;
