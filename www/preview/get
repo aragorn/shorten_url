@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape unescape escapeHTML -oldstyle_urls);
+use CGI::Carp qw(fatalsToBrowser);
 use JSON;
 use Daum::ShortenURL;
 
@@ -18,12 +19,14 @@ my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $url     = param('u')   || "";
 my $referer = param('referer') || "";
 my $format  = param('fmt') || "json";
+my $callback = param('callback') || "socialFunc";
 my $fetch   = 1;
 my $save    = 1;
 my $shorten = new Daum::ShortenURL;
 my $json    = new JSON; $json->allow_nonref;
 
 my $output_type = "application/json";
+$output_type = "application/javascript"  if $format eq "js";
 $output_type = "text/html" if $format eq "html";
 $output_type = "text/xml"  if $format eq "xml";
 my $top_label = "preview";
@@ -51,7 +54,8 @@ my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_
 $title = "제목이 없습니다" unless $title;
 my $highlighted_url = $shorten->shorten_url($original_url);
 
-if ($format eq "json") {
+if ($format eq "json"
+ or $format eq "js") {
   print qq("title": ), $json->encode($title), qq(,\n);
   print qq("url": ), $json->encode($url), qq(,\n);
   print qq("original_url": ), $json->encode($original_url), qq(,\n);
@@ -96,20 +100,23 @@ sub print_debug {
   my $type = shift || "json";
   my $msg = join("", @_);
   $debug_no ++;
-  if    ($type eq "json") { print qq("debug$debug_no": ), $json->encode($msg), qq(,\n); }
+  if    ($type eq "json"
+      or $type eq "js"  ) { print qq("debug$debug_no": ), $json->encode($msg), qq(,\n); }
   elsif ($type eq "xml" ) { print qq(<debug><![CDATA[$msg]]></debug>\n) if $msg =~ s/\]\]>/\]>/og or 1; }
   else                    { print qq(<p class="debug">$msg</p>\n); }
 }
 
 sub print_header {
   my $type = shift || "json";
-  if    ($type eq "json") { print qq({"$top_label": {\n); }
+  if    ($type eq "js"  ) { print qq#if(typeof $callback === "function") $callback({"$top_label": {\n#; }
+  elsif ($type eq "json") { print qq({"$top_label": {\n); }
   elsif ($type eq "xml" ) { print qq(<?xml version="1.0" encoding="UTF-8"?>\n<$top_label>\n); }
   else                    { print qq(<div class="$top_label">\n); }
 }
 sub print_footer {
   my $type = shift || "json";
-  if    ($type eq "json") { print qq("dummy":"null"}}\n); }
+  if    ($type eq "js"  ) { print qq#"dummy":"null"}});\n#; }
+  elsif ($type eq "json") { print qq("dummy":"null"}}\n); }
   elsif ($type eq "xml" ) { print qq(</$top_label>\n); }
   else                    { print qq(</div><!--class="$top_label"-->\n); }
 }
