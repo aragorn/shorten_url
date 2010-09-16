@@ -297,7 +297,7 @@ sub html_body {
                    timestr(timediff($t2, $self->{benchmark})));
   }
   my @splitted = map { s/^\s*|\s*$//og; $_; } split(m{($begin_separator|$end_separator)}os, $html_body);
-  my @htmls; my $begin_string;
+  my @htmls; my $begin_string = "";
   foreach ( @splitted )
   {
     if    ( m{$begin_separator}os ) { $begin_string    = $_; }
