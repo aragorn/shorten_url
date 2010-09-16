@@ -346,6 +346,7 @@ sub shorten_url
   if ( m{^(https?://)(.+)$}o ) { $u[1] = $1; $url = $2; } # protocol
   else                         { return $url; }
 
+#print STDERR "url1=$url\n";
   my $qm = index $url, '?';
   if ( $qm > 0 )    {
     $u[5] = substr $url, $qm;                 # query string
@@ -353,7 +354,7 @@ sub shorten_url
   } else {
     ; # do nothing
   }
-
+#print STDERR "url2=$url\n";
   my $slash = index $url, '/';
   if ( $slash > 0 )    {
     $u[2] = substr $url, 0, $slash;           # domain name
@@ -361,16 +362,20 @@ sub shorten_url
   } else {
     $u[2] = $url;
     ; # do nothing
+    $url = "";
   }
+#print STDERR "url3=$url\n";
 
   $slash = rindex $url, '/';
   if ( $slash > 0 )    {
     $u[3] = substr $url, 0, $slash+1;           # path
     $u[4] = substr $url, $slash+1;              # file name
-  } else {
+  } elsif ( length $url > 0 ) {
     $u[3] = "/";
     $u[4] = substr $url, 1;
-    ; # do nothing
+  } else {
+    $u[3] = "/";
+    $u[4] = "";
   }
 
   @u = map { m/%/o ? CGI::unescape($_) : $_ } @u;
@@ -379,6 +384,7 @@ sub shorten_url
   #return join(" : ", map(+( $u[$_] || "" ),1..5));
   my @s = @u;
   my @m = @u;
+#print STDERR "u=". join(" : ", map(+( $u[$_] || "" ),1..5));
 
   $m[2] = ".." . substr($u[2],-23, 23)  if length $u[2] > 25; # domain
   $m[3] = substr($u[3],  0, 23) . "../" if length $u[3] > 25; # path
