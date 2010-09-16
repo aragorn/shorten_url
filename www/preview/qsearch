@@ -7,7 +7,7 @@ use LWP::UserAgent;
 use LWP::Simple qw(!head);
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use CGI::Carp qw(fatalsToBrowser);
-use Daum::ShortenURL;
+use Daum;
 
 binmode STDOUT, ":encoding(UTF-8)";
 
@@ -25,7 +25,7 @@ $ua->agent("Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) "
 my $req = HTTP::Request->new(GET => $url);
 my $res = $ua->request($req);
 
-print Daum::ShortenURL::utf8_string($res->content);
+print Daum::utf8_string($res->content);
 
 #warn("query_string=$query_string");
 #warn("content_type=".$res->content_type);
