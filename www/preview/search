@@ -201,8 +201,8 @@ sub url_link {
   $src = "http://$src" unless $src =~ m#^https?://#o;
 
   my $href = "redirect?u=". escape($src) ."&referer=". escape($source); 
-  my $rel  = "get?u=". escape($src) ."&referer=". escape($source); 
-  $rel  = "get?u=". escape($src) ."&fetch=1&save=0&referer=". escape($source)
+  my $rel  = "get?u=". escape($src) ."&fmt=html&referer=". escape($source); 
+  $rel  = "get?u=". escape($src) ."&fmt=html&fetch=1&save=0&referer=". escape($source)
     if self_url =~ m/debug/o;
 
   return qq(<a href="$href" target="_blank" class="stit auto tips $class" rel="$rel"
