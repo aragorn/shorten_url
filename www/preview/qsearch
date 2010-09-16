@@ -1,0 +1,35 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+use utf8;
+use LWP::UserAgent;
+use LWP::Simple qw(!head);
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use CGI::Carp qw(fatalsToBrowser);
+use Daum::ShortenURL;
+
+binmode STDOUT, ":encoding(UTF-8)";
+
+our @DEBUG;
+my $q = new CGI;
+
+print $q->header(-charset=>'utf-8', -type=>'text/html');
+
+my $query_string = $q->query_string;
+my $url = "http://search.daum.net/qsearch?".$query_string;
+my $ua  = LWP::UserAgent->new;
+$ua->agent("Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) "
+          ."AppleWebKit/533.4 (KHTML, like Gecko) Chrome/5.0.375.125 Safari/533.4");
+
+my $req = HTTP::Request->new(GET => $url);
+my $res = $ua->request($req);
+
+print Daum::ShortenURL::utf8_string($res->content);
+
+#warn("query_string=$query_string");
+#warn("content_type=".$res->content_type);
+#warn("content=".$res->content);
+
+exit;
+
