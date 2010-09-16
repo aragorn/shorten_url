@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape unescape escapeHTML -oldstyle_urls);
+use JSON;
 use Daum::ShortenURL;
 
 binmode STDOUT, ":encoding(UTF-8)";
@@ -14,13 +15,21 @@ binmode STDOUT, ":encoding(UTF-8)";
 our @DEBUG;
 
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
-my $url     = param('u') || "";
+my $url     = param('u')   || "";
 my $referer = param('referer') || "";
+my $format  = param('fmt') || "json";
 my $fetch   = 1;
 my $save    = 1;
 my $shorten = new Daum::ShortenURL;
+my $json    = new JSON; $json->allow_nonref;
 
-print $q->header(-charset=>'utf-8', -type=>'text/html');
+my $output_type = "application/json";
+$output_type = "text/html" if $format eq "html";
+$output_type = "text/xml"  if $format eq "xml";
+my $top_label = "preview";
+
+print $q->header(-charset=>'utf-8', -type=>$output_type);
+print_header($format);
 
 my ($row,$res) = $shorten->lookup_local($url,$referer);
 
@@ -42,27 +51,67 @@ my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_
 $title = "제목이 없습니다" unless $title;
 my $highlighted_url = $shorten->shorten_url($original_url);
 
-print <<END;
+if ($format eq "json") {
+  print qq("title": ), $json->encode($title), qq(,\n);
+  print qq("url": ), $json->encode($url), qq(,\n);
+  print qq("original_url": ), $json->encode($original_url), qq(,\n);
+  print qq("highlighted_url": ), $json->encode($highlighted_url), qq(,\n);
+} elsif ($format eq "xml") {
+  my ($esc_title, $esc_ourl, $esc_hurl, $esc_url)
+    = map { $_ =~ s/\]\]>/\]>/og; $_; } ($title, $original_url, $highlighted_url, $url);
+  print qq(<title><![CDATA[$esc_title]]></title>\n);
+  print qq(<url><![CDATA[$esc_url]]></url>\n);
+  print qq(<original_url><![CDATA[$esc_ourl]]></original_url>\n);
+  print qq(<highlighted_url><![CDATA[$esc_ourl]]></highlighted_url>\n);
+} else {
+  print <<END;
 <p class="title"><a href="$original_url">$title</a></p>
 <p class="url highlighted">$highlighted_url</p>
-<p class="url hidden">$original_url</p>
+<p class="url original hidden">$original_url</p>
+<p class="url hidden">$url</p>
 END
+}
 
 if (url(-absolute=>1) =~ m/debug/) {
   my ($t2, $t02) = (new Benchmark, [gettimeofday]);
-  print p({class=>'debug'}, "elapsed time=", tv_interval($t01, $t02), "secs")."\n";
-  print p({class=>'debug'}, "benchmark=", timestr(timediff($t2, $t1)))."\n";
-  print p({class=>'debug'}, "loaded from local db")."\n" if $row->{url_id};
-  print p({class=>'debug'}, "fetch=$fetch")."\n";
+  print_debug($format, "elapsed time=", tv_interval($t01, $t02), "secs");
+  print_debug($format, "benchmark=", timestr(timediff($t2, $t1)));
+  print_debug($format, "loaded from local db") if $row->{url_id};
+  print_debug($format, "fetch=$fetch");
 
   foreach my $k ( keys %{$row} )
-  { next if $k =~ m/^_/; print p({class=>'debug'}, "row{$k} = ". escape($row->{$k}) ), "\n"; }
-  foreach ( @DEBUG ) { print p({class=>'debug'}, $_),"\n"; }
-  foreach ( $shorten->debug ) { print p({class=>'debug shorten'}, $_),"\n"; }
+  { next if $k =~ m/^_/; print_debug($format, "row{$k} = ". escape($row->{$k}) ); }
+  foreach ( @DEBUG ) { print_debug($format, $_); }
+  foreach ( $shorten->debug ) { print_debug($format, $_); }
   print p({class=>'debug'}, "reload ",
           a({href=>$q->script_name."?".$q->query_string},
-            $q->unescape($q->script_name ."?". $q->query_string))),"\n";
+            $q->unescape($q->script_name ."?". $q->query_string))),"\n" if $format eq "html";
 }
+print_footer($format);
 
 exit;
 
+my $debug_no = 0;
+sub print_debug {
+  my $type = shift || "json";
+  my $msg = join("", @_);
+  $debug_no ++;
+  if    ($type eq "json") { print qq("debug$debug_no": ), $json->encode($msg), qq(,\n); }
+  elsif ($type eq "xml" ) { print qq(<debug><![CDATA[$msg]]></debug>\n) if $msg =~ s/\]\]>/\]>/og or 1; }
+  else                    { print qq(<p class="debug">$msg</p>\n); }
+}
+
+sub print_header {
+  my $type = shift || "json";
+  if    ($type eq "json") { print qq({"$top_label": {\n); }
+  elsif ($type eq "xml" ) { print qq(<?xml version="1.0" encoding="UTF-8"?>\n<$top_label>\n); }
+  else                    { print qq(<div class="$top_label">\n); }
+}
+sub print_footer {
+  my $type = shift || "json";
+  if    ($type eq "json") { print qq("dummy":"null"}}\n); }
+  elsif ($type eq "xml" ) { print qq(</$top_label>\n); }
+  else                    { print qq(</div><!--class="$top_label"-->\n); }
+}
+
+1;
