@@ -71,13 +71,13 @@ sub hlength {
 
 sub utf8_string {
   my $str = shift;
-  my $charset = shift;
+  my $charset = shift || "";
   return $str if utf8::is_utf8($str);
   if ($charset =~ m/utf-8/ig)
   {
     #push @DEBUG, "regard string as utf8";
     #my $utf8 = Encode::decode("utf-8", $str);
-    my $utf8 = $str;
+    my $utf8 = $str; utf8::decode($utf8);
     #push @DEBUG, "utf8::decode=" . utf8::decode($utf8);
     return $utf8;
   }
