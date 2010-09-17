@@ -10,20 +10,23 @@ use CGI qw(:standard escape unescape escapeHTML -oldstyle_urls);
 use CGI::Carp qw(fatalsToBrowser);
 use JSON;
 use Daum::ShortenURL;
-
-binmode STDOUT, ":encoding(UTF-8)";
+use Encode;
 
 our @DEBUG;
 
-my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
-my $url     = param('u')   || "";
+my $q       = new CGI;
+my $url     = param('u')       || "";
 my $referer = param('referer') || "";
-my $format  = param('fmt') || "json";
+my $format  = param('fmt')     || "json";
+my $charset = param('charset')   || "utf-8";
+$charset = "utf-8" if $charset =~ m/^utf-?8$/io;
 my $callback = param('callback') || "socialFunc";
 my $fetch   = 1;
 my $save    = 1;
 my $shorten = new Daum::ShortenURL;
 my $json    = new JSON; $json->allow_nonref;
+$q->charset($charset); # for proper escapeHTML
+binmode STDOUT, ":encoding(UTF-8)" if $charset eq "utf-8";
 
 my $output_type = "application/json";
 $output_type = "application/javascript"  if $format eq "js";
@@ -31,7 +34,7 @@ $output_type = "text/html" if $format eq "html";
 $output_type = "text/xml"  if $format eq "xml";
 my $top_label = "preview";
 
-print $q->header(-charset=>'utf-8', -type=>$output_type);
+print $q->header(-charset=>$charset, -type=>$output_type);
 print_header($format);
 
 my ($row,$res) = $shorten->lookup_local($url,$referer);
@@ -53,6 +56,11 @@ if (not exists $row->{url_id} and $fetch and $save) {
 my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_url);
 $title = "제목이 없습니다" unless $title;
 my $highlighted_url = $shorten->shorten_url($original_url);
+
+($title, $original_url, $highlighted_url, $url)
+  = map { Encode::encode($charset, $_) }
+     ($title, $original_url, $highlighted_url, $url)
+  unless $charset eq "utf-8";
 
 if ($format eq "json"
  or $format eq "js") {
@@ -99,6 +107,7 @@ my $debug_no = 0;
 sub print_debug {
   my $type = shift || "json";
   my $msg = join("", @_);
+  $msg = Encode::encode($charset, $msg);
   $debug_no ++;
   if    ($type eq "json"
       or $type eq "js"  ) { print qq("debug$debug_no": ), $json->encode($msg), qq(,\n); }
