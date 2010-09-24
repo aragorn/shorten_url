@@ -1,0 +1,57 @@
+#!/usr/bin/perl -w
+
+use lib '/home/aragorn/perl/lib/perl5/site_perl';
+use lib $ENV{HOME}.'/shorten_url/lib';
+use strict;
+use warnings;
+use utf8;
+use Daum::ShortenURL;
+
+our @DEBUG;
+
+binmode STDOUT, ":encoding(UTF-8)";
+binmode STDERR, ":encoding(UTF-8)";
+
+my $http_server = `hostname`; chomp $http_server;
+my $http_port   = `whoami` eq 'url_svc' ? 80 : 8080; chomp $http_port;
+#print STDERR "config of $http_server:$http_port\n";
+my %config = Daum::ShortenURL::config(join(":",$http_server,$http_port));
+#map { print STDERR "config $_=$config{$_}\n"; } sort keys %config;
+
+my $shorten = new Daum::ShortenURL;
+
+my $from  = shift || 0;
+my $total = shift || 100;
+while ( 1 ) {
+  my $count = $total < 100 ? $total : 100;
+  my ($urls, $list) = $shorten->list_by_surl_length($from, $count);
+  my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
+
+  foreach my $row ( @list )
+  {
+    map { utf8::decode($row->{$_}); } qw(shorten_url original_url);
+    my $shorten_url = $row->{shorten_url};
+    my $original_url = $row->{original_url};
+    my $modified_url = "";
+    eval {
+      local $SIG{'__WARN__'} = sub { die $_[0]; };
+      my $copied_url = $original_url;
+      $modified_url = $shorten->shorten_url($copied_url);
+      $shorten_url =~ s/\s+/ /os;
+      $original_url =~ s/\s+/ /os;
+      printf "%s\t%s\t%s\t%s\t%s\n",
+          $shorten_url, length $shorten_url, $modified_url,
+          length $original_url, $original_url
+      ;#  if $modified_url =~ m/^http/o;
+    };
+    if ( $@ ) {
+      printf STDERR ">>> %s>>> [%s]\t[%s]\t[%s]\n\n\n", $@,
+        $shorten_url, $modified_url, $original_url;
+    }
+  }
+  $from += $count;
+  last if $from >= $total;
+}
+  
+1;
+

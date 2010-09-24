@@ -24,8 +24,10 @@ my $from  = shift || 0;
 my $total = shift || 100;
 while ( 1 ) {
   my $count = $total < 100 ? $total : 100;
-  my ($urls, $list) = $shorten->list_by_url_length($from, $count);
-  my @list = map { $$list{$_} } sort { $b <=> $a } keys %$list;
+  my ($urls, $list) = $shorten->list_by_ourl_length($from, $count);
+  my @list = map { $$list{$_} } 
+             sort { length $$list{$b}->{original_url} <=>
+                    length $$list{$a}->{original_url} } keys %$list;
 
   foreach my $row ( @list )
   {
