@@ -19,6 +19,7 @@ our @fields_url_trans =
      is_dead is_unreachable
      created_on updated_on );
 our ($DBH_SLAVE, $DBH_MASTER);
+our $FORWARD_URL = "http://61.111.63.14:8000/ShortURL/request_crawl/";
 
 BEGIN {
   %CONFIG_ALL = (
@@ -200,6 +201,26 @@ sub update {
 
   return undef unless defined $r;
   return 1;
+}
+
+sub forward {
+  my ($self, $url) = @_;
+
+  my $forward_url = $FORWARD_URL . $url;
+  my $res = fetch_webpage($forward_url);
+  my $content  = $res->content;
+
+  if ($res->is_success)
+  {
+    push @DEBUG, "forward: is_success: $content";
+    return 1;
+  } else {
+    my $status = $res->status_line;
+    push @DEBUG, "status=[$status]";
+    push @DEBUG, "forward: failed: $content";
+    return 0;
+  }
+
 }
 
 sub list {

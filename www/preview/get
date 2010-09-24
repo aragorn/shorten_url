@@ -38,6 +38,7 @@ print $q->header(-charset=>$charset, -type=>$output_type);
 print_header($format);
 
 my ($row,$res) = $shorten->lookup_local($url,$referer);
+$shorten->forward($url) unless exists $row->{url_id};
 
 if (url(-absolute=>1) =~ m/debug/) {
   $fetch   = param('fetch') || 0;
