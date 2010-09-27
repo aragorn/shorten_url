@@ -104,48 +104,6 @@ sub searchTab {
   my @selected_tab = grep { $_ eq $where } map { $_->{id} } @added_tab_list;
   my $selected_tab = shift @selected_tab || "";
   push @DEBUG, p("selected_tab=$selected_tab");
-=rem
-  my @tab_list;
-  my $tab_pattern1 = qr{
-<a \s+ href="[^\?]+\?([^"]+)"
-   \s+ id="sbar_(\w+)"
-   \s+ onClick='[^']*'
-   \s+ class="([\w\s]+)">
-   <span \s class="[\w\s]+">(\w+)</span>
-  }iox;
-  while ( $html =~ m{$tab_pattern1}og ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
-=cut
-
-=rem
-  my $tab_pattern2 = qr{
-class="oLink">
-<a \s+ href="[^\?]+\?([^"]+)"
-   \s+ class="([\w\s]+)"
-   \s+ onClick='[^']*'
-   \s+ target="\w+"
-   \s+ onmouseover="[^"]*"
-   \s+ onmouseout="[^"]*"
-> <span>(\w+)</span>
-  }iox;
-  while ( $html =~ m{$tab_pattern1}og ) { push @tab_list, { href=> $1, id=>$2, class=>$3, name=>$4 }; }
-=cut
-=rem
-  my ($prev,$ul,$next) = #map { s/</&lt;/go; s/>/&gt;/go; $_; }
-    split(/<ul id="srchTab">|<script type="text\/javascript">uccTabChg/o, $html, 3);
-    #split(/<ul|<script/o, $html, 3);
-push @DEBUG, p("prev=".($prev)), "-"x80;
-push @DEBUG, p("ul="  .($ul)),   "-"x80;
-push @DEBUG, p("next=".($next)), "-"x80;
-
-  my $separator = qr{<\/li>\s*<li(?:\s+id="\w+")?>|<li(?:\s+id="\w+")?>|<\/li>}iox;
-  my @items = split(/($separator)/o, $ul);
-map { push @DEBUG, hr, div("li=".($_)); }
-map { s/</&lt;/go; s/>/&gt;/go; $_; } @items;
-=cut
-  #map { push @DEBUG, p("id=".$_->{id}); } @tab_list;
-
-  #$html =~ s!(</ul>\s*</div>\s*<ul class="nav_gnb_deffense">)!join("\n",@tab_html).$1!ioe;
-  #$html =~ s!(<li class="tab_yellow_tip_off")!join("\n",@tab_html).$1!ioe;
   $html =~ s!(</ul>\s*<div class="wrap_more" id="wrapMore")!join("\n",@tab_html).$1!ioe;
 
   # change the selected tab
@@ -233,13 +191,17 @@ END
   # 실시간,소셜웹 컬렉션에서 트위터 본문 중 링크의 Style에 적용된다.
   push @html_head, <<END;
 <style type="text/css">
+#daumgnb li.tab_sns a { height: 28px; }
 .wrap_gnb .nav_gnb_deffense li.tab_sns a {
   background-position: -332px -465px;
-  font-size: 9pt; font-weight: normal; xxbold;
+  font-size: 9pt; font-weight: 500;
   text-decoration: none; text-indent: 0;
   vertical-align: middle;
   color: #777;
-  line-height: 34px;
+  padding: 3px 0 0 0;
+  outline: 0px solid red;
+  line-height: 28px;
+  width: 49px;
 }
 .wrap_gnb .nav_gnb_deffense li.tab_sns.tab_sns_on a {
   color: #5575f6;
@@ -255,8 +217,33 @@ a.stit.twitter:visited { color: #2276BB; color: #09c; }
 p.url.highlighted span.dimmed { font-size: 9pt; font-weight: normal; }
 p.url { font-family: arial, sans-serif; color: #09c; /*#0E774A;*/ }
 p.url.hidden { color: transparent; }
+
 </style>
 END
+
+  my $coll = CGI::param('m') || "";
+  if ($coll eq "sch_realtime") {
+  push @html_head, <<END;
+<style type="text/css">
+#liveSearchColl ,
+div.liveSearchColl { float: left; }
+.daumwrap_base .content_main {width:auto;}
+#mRight { width: 201px; height: 453px; }
+#mRight { position: absolute; top: 0; right: 0; background: white; z-index: 100; }
+#mCenter { width: auto; }
+#mCenter { margin: 0; }
+.daumwrap_base .content_top  { margin: 0; }
+.daumwrap_base .content_main { margin: 0 0 0 25px; }
+</style>
+<!--[if IE]>
+<style type="text/css">
+#mCenter {margin: 0;}
+.daumwrap_base .content_top  { margin: 0; }
+.daumwrap_base .content_main { margin: 0 0 0 25px; }
+</style>
+<![endif]-->
+END
+  }
 
   $self->{html_head} = join("\n", @html_head);
   return wantarray ? @html_head : $self->{html_head};
@@ -448,14 +435,18 @@ sub request_search_result {
   my $q = shift;
   my $url = $BASE_SEARCH_URL."?".$q->query_string;
   $url =~ s/;/&/go;
-
+push @DEBUG, "search_url=[$url]";
   if ( not defined $ua ) {
     $ua = LWP::UserAgent->new;
     $ua->agent("Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) "
               ."AppleWebKit/533.4 (KHTML, like Gecko) Chrome/5.0.375.125 Safari/533.4");
   }
-
+  #my $referer = $BASE_SEARCH_URL."?"."w=tot&q=".escape($q->param('q'));
+  #push @DEBUG, "Referer: $referer";
+push @DEBUG, "Cookie: ".$q->raw_cookie();
   my $req = HTTP::Request->new(GET => $url);
+  #$req->header("Referer", $referer);
+  $req->header("Cookie", $q->raw_cookie());
   my $res = $ua->request($req);
   return $res;
 }
