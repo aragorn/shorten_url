@@ -81,10 +81,10 @@ print "$path started - unexpected\n";
     if    ($path eq q(r/m/c)  )     { $result{total_count} = $str; }
     elsif ($path eq q(r/m/pc) )     { $result{page_count}  = $str; }
     elsif ($path eq q(r/m/is-end) ) { $result{is_end} = $str eq 'False' ? 0 : 1; }
-    elsif ($path =~ m{^r/m/([\w\-]+)$}o ) { $result{$1} = $str; }
+    elsif ($path =~ m{^r/m/([\w\-]+)$}o ) { $result{$1} .= $str; }
     elsif ($path eq q(r/g) )        { ; } # ignore
-    elsif ($path =~ m{^r/ds/data/([\w\-]+)$}o ) { $doc{$1} = $str; }
-    elsif ($path =~ m{^r/ds/data/clusters/data/([\w\-]+)$}o ) { $doc_in_clusters{$1} = $str; }
+    elsif ($path =~ m{^r/ds/data/([\w\-]+)$}o ) { $doc{$1} .= $str; }
+    elsif ($path =~ m{^r/ds/data/clusters/data/([\w\-]+)$}o ) { $doc_in_clusters{$1} .= $str; }
     else {
       print "$path str=[$str]   ", length $str, "\n";
     }

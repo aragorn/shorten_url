@@ -222,8 +222,8 @@ p.url.hidden { color: transparent; }
 END
 
   my $coll = CGI::param('m') || "";
-  if ($coll eq "sch_realtime") {
-  push @html_head, <<END;
+  #if ($coll eq "sch_realtime") {
+  push @html_head, <<"END" if $coll eq "sch_realtime";
 <style type="text/css">
 #liveSearchColl ,
 div.liveSearchColl { float: left; }
@@ -243,7 +243,7 @@ div.liveSearchColl { float: left; }
 </style>
 <![endif]-->
 END
-  }
+  #}
 
   $self->{html_head} = join("\n", @html_head);
   return wantarray ? @html_head : $self->{html_head};
