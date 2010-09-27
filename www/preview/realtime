@@ -59,12 +59,15 @@ print <<END;
 </style>
 END
 
+my $issue_level = $result->{issue_level};
+my $issue_score = sprintf("%2.2f", $result->{issue_score});
+
 my %cnt;
 map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
 print <<END;
-<div id="liveSearchColl">
+<div id="liveSearchColl" class="liveSearchColl">
  <div class="collTitle">
-   <h2 class="fL">실시간검색</h2>
+   <h2 class="fL">실시간</h2>
    <!--span class="tit_add lsp fL"> 
      <span class="ico_updating fL" id="icoUpdate" style="display:block;"><img width="10" height="10" alt="업데이트중" src="http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_live_search_updating.gif"></span> 
      <span class="ico_stand fL" id="icoStand" style="display:none;"></span> 
@@ -74,8 +77,11 @@ print <<END;
      <span class="ico_play fL" id="btnRealTimeRun2" style="display:none"><a class="base fwn" href="javascript:_jsChangeRealTimeFlag();">다시 시작</a></span>
    </span-->
    <span class="tit_add fL">
-     <span class="g_tit">$server</span>
-     <span class="g_tit">$cnt{page_start}-$cnt{page_end} / 총 $cnt{total_count}\건</span>
+     <span class="g_tit">level $issue_level :$issue_score</span> /
+     <span class="g_tit">$server</span> /
+     <!--span class="g_tit">$cnt{page_start}-$cnt{page_end}</span> / -->
+     <span class="g_tit">n=$count</span> /
+     <span class="g_tit">총 $cnt{total_count}\건</span>
    </span> 
  </div>
  <div class="live_search_body">
@@ -96,6 +102,7 @@ foreach my $doc ( @{$result->{ds}} )
        qw(docid title description doc_url index_time index_date score source_id
           nickname display_name pub_time pub_date doc_rank user_id display_url
           image_url channel_url channel_id);
+  my $short_score = sprintf("%.7f", $score);
   my $doc_link = "";
   $doc_link = "트위터 " if $source_id eq "twitter";
   $doc_link .= " 원문보기";
@@ -106,7 +113,9 @@ foreach my $doc ( @{$result->{ds}} )
   print <<END;
 <li class="mb_basic">
   <div class="box_con">
-   <span class="wrap_time"><a href="$doc_url" target="_blank" class="bl_sstit"><span id="getRealIndexTime_0"><script type="text/javascript">try{document.write(_jsMakeRealTimeDate('$pub_time'));}catch(e){}</script></span></a></span>
+   <span class="wrap_time"><a href="$doc_url" target="_blank" class="bl_sstit"><span id="getRealIndexTime_0"><script type="text/javascript">try{document.write(_jsMakeRealTimeDate('$pub_time'));}catch(e){}</script></span></a>
+     <span class="bl_sstit">$short_score</span>
+   </span>
    <span class="wrap_photo">
      <a href="$doc_url" target="_blank"><img src="$image_url" width="48" height="48" alt=""/></a>
    </span>

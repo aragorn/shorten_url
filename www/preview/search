@@ -109,6 +109,8 @@ sub realTimeColl {
   my $html = shift;
 
   my $css = <<END;
+#liveSearchColl ,
+#liveSearchColl .collTitle ,
 #liveSearchColl .live_search_body                 {width:400px;}
 #liveSearchColl ul.list_live_search li            {width:400px;}
 #liveSearchColl ul.list_live_search li .bg_top    {width:400px;}
@@ -119,10 +121,6 @@ sub realTimeColl {
   padding: 13px 5px 9px 0;
 }
 
-#liveSearchColl { float: left; }
-.daumwrap_base .content_main {width:auto;}
-#mRight {position: absolute; right: 0; xxdisplay: none; background: white;}
-#mCenter {width: auto;}
 END
   my $separator = qr{<\/li>\s*<li class="mb_basic">|<li class="mb_basic">|<\/li>}o;
   my @items = split(/($separator)/o, $html);
