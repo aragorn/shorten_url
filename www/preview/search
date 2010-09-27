@@ -108,6 +108,18 @@ sub realTimeColl {
   my $self = shift;
   my $html = shift;
 
+  my $css = <<END;
+#liveSearchColl .live_search_body                 {width:420px;}
+#liveSearchColl ul.list_live_search li            {width:420px;}
+#liveSearchColl ul.list_live_search li .bg_top    {width:420px;}
+#liveSearchColl ul.list_live_search li .bg_bottom {width:420px;}
+#liveSearchColl ul.list_live_search .box_con {
+  background:url(http://imgsrc.search.daum-img.net/search_all/2010/bg/bg_live_tab.gif) repeat-y -749px 0;
+  border-right: 1px solid #e9e9e9;
+}
+#liveSearchColl { float: left; }
+.daumwrap_base .content_main {width:auto;}
+END
   my $separator = qr{<\/li>\s*<li class="mb_basic">|<li class="mb_basic">|<\/li>}o;
   my @items = split(/($separator)/o, $html);
   foreach ( @items ) {
@@ -116,6 +128,10 @@ sub realTimeColl {
     m!<span\sclass="wrap_time">\s*<a\shref="([^"]+)"!isogx and $source = $1;
     $class = "twitter" if index($source, "twitter.com")> 0;
 
+    #s{ (</style> \s* <div \s+ id="liveSearchColl">)
+    s{ (</style> \s*) (<div \s+ id="liveSearchColl">)
+    } ! $css.$1."---111---". $2 !isogxe;
+
     s{ (?<=<span \s class="base"> )   # not $1
        ( .{0,500} )                    # $1
        (?=</span> \s* <span \s class="txt_source">)  # not $2
@@ -123,8 +139,44 @@ sub realTimeColl {
     ! make_autolink($1,$class,$source) !isogxe;
   }
   my $modified = join("<!-- XYZ -->", @items);
-
+  $modified .= get_live_search_coll("10.30.127.166:8080");
+  $modified .= get_live_search_coll("10.30.127.167:1777");
+  $modified .= get_live_search_coll("10.30.127.168:1777");
   return $modified;
+}
+
+sub get_live_search_coll {
+  #my $self = shift;
+  my $host = shift;
+  my $query = $q->param('q') || "";
+  my $utf8_query = Daum::FederatedSearch::utf8_string($query);
+  my $query_escaped = escape($utf8_query);
+  my $where = $q->param('w') || "";
+  my $page  = 1;
+  my $full_url = url(-full=>1); $full_url =~ s/\w+$//o;
+  my $base_url = $full_url . "realtime?w=$where&p=%s&q=%s";
+  my $search_url = sprintf($base_url, $page, escape($query));
+  my $html = LWP::Simple::get($search_url);
+  utf8::decode($html);
+#return $html;
+
+  my $separator = qr{<li class="doc">|</li><!--class="doc"-->}o;
+  my @items = split(/($separator)/o, $html);
+  foreach ( @items ) {
+    next if m/$separator/o;
+    my ($class,$source) = ("","");
+    m!<span\sclass="nick">\s*<a\shref="([^"]+)"!isogx and $source = $1;
+    $class = "twitter" if index($source, "twitter.com")> 0;
+
+    s{ ( <span \s class="base"> )      # $1
+       ( .{0,500} )                    # $2
+       ( </span><!--class="base"--> )  # $3
+     }
+    ! $1.make_autolink($2,$class,$source).$3 !isogxe;
+  }
+  my $modified = join("<!-- XYZ -->", @items);
+  return $modified;
+  return $html;
 }
 
 sub make_autolink {

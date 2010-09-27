@@ -2,11 +2,185 @@
 
 use strict;
 use warnings;
-use CGI qw(:standard);
+use utf8;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+use CGI::Carp qw(fatalsToBrowser);
+use LWP::Simple qw(!head);
+use XML::Parser;
+use Data::Dumper;
+use Daum;
+use Daum::Breeze2;
 
-my $q = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+Daum::Breeze2::init_benchmark();
 
-print $q->header(-charset=>'utf-8', -type=>'text/html');
+our @DEBUG;
+binmode STDOUT, ":encoding(UTF-8)";
 
-print div( h3("hello, world!") );
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time 1");
 
+my $bz2     = new Daum::Breeze2;
+my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
+my $base_url = "http://%s/search.2/search.py?coll=sch_realtime&enc=utf8&&p=1&n=10&req=all&q=%s";
+my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+my $query   = param('q') || "iphone"; utf8::decode($query);
+my $page    = param('p') || "1";
+my $where   = param('w') || "tot";
+my $server  = param('server') || "10.30.127.227:8080";
+
+print $q->header(-charset=>'utf-8', -type=>'text/plain');
+
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time 2");
+
+print "<!--\n";
+my $search_url = sprintf($base_url, $server, escape($query)); #, $page);
+print "search_url=$search_url\n";
+
+my $xml = LWP::Simple::get($search_url); utf8::decode($xml);
+
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time 3");
+
+my $result = $bz2->parse_xml_result($xml,$page);
+
+push @DEBUG, Daum::Breeze2::check_clock("after parse   ");
+
+map { print "debug: ", $_, "\n"; } @DEBUG;
+map { print "result $_: ", $result->{$_}, "\n"; } sort keys %{$result};
+
+print "-->\n";
+
+print <<END;
+<!-- 실시간검색Coll -->
+<style type="text/css">
+END
+
+print <<END;
+
+</style>
+END
+
+my %cnt;
+map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
+print <<END;
+<div id="liveSearchColl">
+ <div class="collTitle">
+   <h2 class="fL">실시간검색</h2>
+   <span class="tit_add lsp fL"> 
+     <span class="ico_updating fL" id="icoUpdate" style="display:block;"><img width="10" height="10" alt="업데이트중" src="http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_live_search_updating.gif"></span> 
+     <span class="ico_stand fL" id="icoStand" style="display:none;"></span> 
+ 
+     <span class="g_tit txt_update fL" id="statusRealTimeRun">업데이트 중 - </span> 
+     <span class="ico_stop fL" id="btnRealTimeRun1"><a class="base fwn" href="javascript:_jsChangeRealTimeFlag();">일시 정지</a></span> 
+     <span class="ico_play fL" id="btnRealTimeRun2" style="display:none"><a class="base fwn" href="javascript:_jsChangeRealTimeFlag();">다시 시작</a></span>
+     <span class="">$cnt{page_start}-$cnt{page_end} / 총 $cnt{total_count}\건</span>
+   </span> 
+ </div>
+ <div class="live_search_body">
+   <ul class="list_live_search" id="realTimeList">
+END
+
+my $page_count = $result->{page_count} || 0;
+$page_count = 4 if $where eq "tot" and $page_count > 4;
+$page_count = 30 if $page_count > 30;
+
+foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
+{
+  my ($docid, $title, $description, $doc_url, $index_time, $index_date, $score, $source_id,
+      $nickname, $display_name, $pub_time, $pub_date, $doc_rank, $user_id, $display_url,
+      $image_url, $channel_url, $channel_id)
+   = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
+       qw(docid title description doc_url index_time index_date score source_id
+          nickname display_name pub_time pub_date doc_rank user_id display_url
+          image_url channel_url channel_id);
+  my $doc_link = "";
+  $doc_link = "트위터 " if $source_id eq "twitter";
+  $doc_link .= " 원문보기";
+  my $source_class = "ico_twiter";
+  $image_url = $image_url_default unless $image_url;
+  map { print "<!-- $_ = $doc->{$_} -->\n" } sort keys %{$doc};
+
+  print <<END;
+<li class="mb_basic">
+  <div class="box_con">
+   <span class="wrap_time"><a href="$doc_url" target="_blank" class="bl_sstit"><span id="getRealIndexTime_0"><script type="text/javascript">try{document.write(_jsMakeRealTimeDate('1285583171000'));}catch(e){}</script></span></a></span>
+   <span class="wrap_photo">
+     <a href="$doc_url" target="_blank"><img src="$image_url" width="48" height="48" alt=""/></a>
+   </span>
+   <span class="wrap_con">
+     <span class="base">$title</span><!--class="base"-->
+     <span class="txt_source">
+       <a href="$channel_url" target="_blank" class="g_tit">$user_id</a>
+       <span class="vline">&nbsp;|&nbsp;</span>
+       <span class="$source_class"><a href="$doc_url" target="_blank" class="g_tit">$doc_link</a></span>
+     </span>
+   </span><!--class="wrap_con"-->
+   <div class="clr"></div>
+  </div>
+  <div class="bg_top"></div>
+  <div class="bg_bottom"></div>
+</li>
+END
+}
+
+if ($where eq "tot")
+{
+  my $query_escaped = escape($query);
+  print <<END;
+    </ul>
+  </div><!--class="live_search_body"-->
+  <div class="clr"></div>
+  <div class="moreArea"><a href="?w=dir&m=sch_realtime&q=$query_escaped">실시간검색 더보기</a></div>
+</div><!--id="liveSearchColl"-->
+<!-- end 실시간 검색 Coll --> <div id="line"></div><hr/>
+END
+} else {
+  print <<END;
+    </ul>
+  </div><!--class="live_search_body"-->
+  <div class="clr"></div>
+</div><!--id="liveSearchColl"-->
+END
+}
+
+print <<END;
+<script type="text/javascript"> 
+var _jsRealTimeFirstTime = 20000;
+ 
+  _jsRealTimeFirstTime = 10000;
+ 
+try{
+  _jsGetTimeObject.push({id:"0", time:"1285583171000"});
+  _jsGetTimeObject.push({id:"1", time:"1285583101000"});
+  _jsGetTimeObject.push({id:"2", time:"1285583070000"});
+  _jsGetTimeObject.push({id:"3", time:"1285583055000"});
+  _jsGetTimeObject.push({id:"4", time:"1285583041000"});
+  _jsGetTimeObject.push({id:"5", time:"1285582980000"});
+  _jsGetTimeObject.push({id:"6", time:"1285582959000"});
+  _jsGetTimeObject.push({id:"7", time:"1285582878000"});
+  _jsGetTimeObject.push({id:"8", time:"1285582828000"});
+  _jsGetTimeObject.push({id:"9", time:"1285582435000"});
+  _jsRealTimeSearchExec = new _jsRealTimeSearch();
+ 
+  if(daumSF.Browser.getCookie("detailOptionBox")=="true"){
+    daumSF.Browser.setCookie("detailOptionBox","",0);
+    _jsDetailOptionShowHide();
+  }
+}catch(e){}
+</script>
+END
+
+#print pre(Dumper($result));
+
+push @DEBUG, Daum::Breeze2::check_clock("elapsed time x");
+
+print "<!--\n";
+if (url(-absolute=>1) =~ m/debug/) {
+  foreach ( @DEBUG ) { print p({class=>'debug'}, $_); }
+  my $reload_link = $q->unescape($q->script_name ."?". $q->query_string); utf8::decode($reload_link);
+  print p({class=>'debug'}, "reload ",
+          a({href=>"?".$q->query_string}, $reload_link));
+}
+print "-->\n";
+
+exit;
+
+1;
