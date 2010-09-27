@@ -155,10 +155,11 @@ sub get_live_search_coll {
   my $utf8_query = Daum::FederatedSearch::utf8_string($query);
   my $query_escaped = escape($utf8_query);
   my $where = $q->param('w') || "";
+  my $source_id = $q->param('source_id') || "";
   my $page  = 1;
   my $full_url = url(-full=>1); $full_url =~ s/\w+$//o;
-  my $base_url = $full_url . "realtime?w=$where&server=%s&p=%s&n=%s&q=%s";
-  my $search_url = sprintf($base_url, $host, $page, $count, escape($query));
+  my $base_url = $full_url . "realtime?w=$where&server=%s&p=%s&n=%s&source_id=%s&q=%s";
+  my $search_url = sprintf($base_url, $host, $page, $count, $source_id, escape($query));
   my $html = LWP::Simple::get($search_url);
   utf8::decode($html);
 #return $html;

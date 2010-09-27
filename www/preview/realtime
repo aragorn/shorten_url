@@ -26,6 +26,7 @@ my $query   = param('q') || "iphone"; utf8::decode($query);
 my $page    = param('p') || "1";
 my $count   = param('n') || "10";
 my $where   = param('w') || "tot";
+my $source_id = param('source_id') || "";
 my $server  = param('server') || "10.30.127.227:8080";
 
 print $q->header(-charset=>'utf-8', -type=>'text/plain');
@@ -34,6 +35,7 @@ push @DEBUG, Daum::Breeze2::check_clock("elapsed time 2");
 
 print "<!--\n";
 my $search_url = sprintf($base_url, $server, $count, escape($query)); #, $page);
+$search_url .= "&source_id=$source_id" if $source_id;
 print "search_url=$search_url\n";
 
 my $xml = LWP::Simple::get($search_url); utf8::decode($xml);
@@ -95,18 +97,18 @@ $page_count = 30 if $page_count > 30;
 #foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
 foreach my $doc ( @{$result->{ds}} )
 {
-  my ($docid, $title, $description, $doc_url, $index_time, $index_date, $score, $source_id,
+  my ($docid, $title, $description, $description2, $doc_url,
+      $index_time, $index_date, $score, $source_id,
       $nickname, $display_name, $pub_time, $pub_date, $doc_rank, $user_id, $display_url,
       $image_url, $channel_url, $channel_id)
    = map { utf8::decode($doc->{$_}); $doc->{$_} || "" }
-       qw(docid title description doc_url index_time index_date score source_id
+       qw(docid title description description2 doc_url 
+          index_time index_date score source_id
           nickname display_name pub_time pub_date doc_rank user_id display_url
           image_url channel_url channel_id);
   my $short_score = sprintf("%.7f", $score);
-  my $doc_link = "";
-  $doc_link = "트위터 " if $source_id eq "twitter";
-  $doc_link .= " 원문보기";
-  my $source_class = "ico_twiter";
+  my ($doc_link, $source_class) = ("트위터 원문보기", "ico_twiter");
+  ($doc_link, $source_class) = ("Daum요즘 원문보기", "ico_yozm") if $source_id eq "yozm";
   $image_url = $image_url_default unless $image_url;
   map { print "<!-- $_ = $doc->{$_} -->\n" } sort keys %{$doc};
 
@@ -116,9 +118,43 @@ foreach my $doc ( @{$result->{ds}} )
    <span class="wrap_time"><a href="$doc_url" target="_blank" class="bl_sstit"><span id="getRealIndexTime_0"><script type="text/javascript">try{document.write(_jsMakeRealTimeDate('$pub_time'));}catch(e){}</script></span></a>
      <span class="bl_sstit">$short_score</span>
    </span>
+END
+  
+  print <<"END" if $source_id eq "twitter" or $source_id eq "yozm";
    <span class="wrap_photo">
      <a href="$doc_url" target="_blank"><img src="$image_url" width="48" height="48" alt=""/></a>
    </span>
+END
+
+  if ($source_id eq "cafe" or
+      $source_id eq "news" or
+      $source_id eq "board" or
+      $source_id eq "blog") {
+    print <<END;
+   <span class="wrap_con">
+     <span class="txt_con">
+       <span class="link_tit"><a href="$doc_url" class="tit_u gulim" target="_blank">$title</a></span>
+       $description
+     </span><!--class="txt_con"-->
+     <span class="txt_source">
+END
+    print <<"END" if $nickname;
+       <span class="g_tit">$nickname</span>
+       <span class="vline">&nbsp;|&nbsp;</span>
+END
+
+    print <<END;
+       <span class="source"><a href="$display_url" target="_blank" class="g_tit">$display_name</a></span>
+     </span>
+   </span><!--class="wrap_con"-->
+   <div class="clr"></div>
+  </div>
+  <div class="bg_top"></div>
+  <div class="bg_bottom"></div>
+</li>
+END
+  } else {
+    print <<END;
    <span class="wrap_con">
      <span class="base">$title</span><!--class="base"-->
      <span class="txt_source">
@@ -133,6 +169,8 @@ foreach my $doc ( @{$result->{ds}} )
   <div class="bg_bottom"></div>
 </li>
 END
+
+  }
 }
 
 if ($where eq "tot")
