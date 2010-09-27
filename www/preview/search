@@ -109,16 +109,20 @@ sub realTimeColl {
   my $html = shift;
 
   my $css = <<END;
-#liveSearchColl .live_search_body                 {width:420px;}
-#liveSearchColl ul.list_live_search li            {width:420px;}
-#liveSearchColl ul.list_live_search li .bg_top    {width:420px;}
-#liveSearchColl ul.list_live_search li .bg_bottom {width:420px;}
+#liveSearchColl .live_search_body                 {width:400px;}
+#liveSearchColl ul.list_live_search li            {width:400px;}
+#liveSearchColl ul.list_live_search li .bg_top    {width:400px;}
+#liveSearchColl ul.list_live_search li .bg_bottom {width:400px;}
 #liveSearchColl ul.list_live_search .box_con {
   background:url(http://imgsrc.search.daum-img.net/search_all/2010/bg/bg_live_tab.gif) repeat-y -749px 0;
   border-right: 1px solid #e9e9e9;
+  padding: 13px 5px 9px 0;
 }
+
 #liveSearchColl { float: left; }
 .daumwrap_base .content_main {width:auto;}
+#mRight {position: absolute; right: 0; xxdisplay: none; background: white;}
+#mCenter {width: auto;}
 END
   my $separator = qr{<\/li>\s*<li class="mb_basic">|<li class="mb_basic">|<\/li>}o;
   my @items = split(/($separator)/o, $html);
@@ -130,7 +134,7 @@ END
 
     #s{ (</style> \s* <div \s+ id="liveSearchColl">)
     s{ (</style> \s*) (<div \s+ id="liveSearchColl">)
-    } ! $css.$1."---111---". $2 !isogxe;
+    } ! $css.$1."".$2 !isogxe;
 
     s{ (?<=<span \s class="base"> )   # not $1
        ( .{0,500} )                    # $1
@@ -139,23 +143,24 @@ END
     ! make_autolink($1,$class,$source) !isogxe;
   }
   my $modified = join("<!-- XYZ -->", @items);
-  $modified .= get_live_search_coll("10.30.127.166:8080");
-  $modified .= get_live_search_coll("10.30.127.167:1777");
-  $modified .= get_live_search_coll("10.30.127.168:1777");
+  $modified .= get_live_search_coll("10.30.127.166:8080", 20);
+  $modified .= get_live_search_coll("10.30.127.167:1777", 20);
+  $modified .= get_live_search_coll("10.30.127.168:1777", 30);
   return $modified;
 }
 
 sub get_live_search_coll {
   #my $self = shift;
   my $host = shift;
+  my $count = shift;
   my $query = $q->param('q') || "";
   my $utf8_query = Daum::FederatedSearch::utf8_string($query);
   my $query_escaped = escape($utf8_query);
   my $where = $q->param('w') || "";
   my $page  = 1;
   my $full_url = url(-full=>1); $full_url =~ s/\w+$//o;
-  my $base_url = $full_url . "realtime?w=$where&p=%s&q=%s";
-  my $search_url = sprintf($base_url, $page, escape($query));
+  my $base_url = $full_url . "realtime?w=$where&server=%s&p=%s&n=%s&q=%s";
+  my $search_url = sprintf($base_url, $host, $page, $count, escape($query));
   my $html = LWP::Simple::get($search_url);
   utf8::decode($html);
 #return $html;
