@@ -18,20 +18,16 @@ binmode STDOUT, ":encoding(UTF-8)";
 
 my @BENCHMARK = ();
 my ($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @BENCHMARK, p("before new CGI:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
 our $q     = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 
 print $q->header(-charset=>'utf-8', -type=>'text/html');
-#warningsToBrowser(1);
  
 ($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @BENCHMARK, p("before new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
 my $fsearch = new Daum::FederatedSearch(query=>$q, benchmark=>$t1, gettimeofday=>$t01);
 
 ($t2, $t02) = (new Benchmark, [gettimeofday]);
-push @BENCHMARK, p("after new FederatedSearch:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
 $fsearch->handler('realTimeColl', \&realTimeColl);
 $fsearch->handler('liveSearchColl', \&realTimeColl);
@@ -40,14 +36,11 @@ $fsearch->add_tab('sns', '소셜웹', 'w=sns&q=%s&enc=utf8&nul_search=btn');
 
 if ($fsearch->fetch_search_result($q)) {
   ($t2, $t02) = (new Benchmark, [gettimeofday]);
-  push @BENCHMARK, p("after fetch_search_result:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
   print $fsearch->html_head;
   print $fsearch->html_body;
 
   print qq(<div class="clr"></div><div style="position: relative; top: 160px;">);
-  ($t2, $t02) = (new Benchmark, [gettimeofday]);
-  push @BENCHMARK, p("after print html_body:", tv_interval($t01, $t02), timestr(timediff($t2, $t1)));
 
   map { print $_, "\n"; } @BENCHMARK;
   if (self_url =~ m/debug/o) {
@@ -122,6 +115,7 @@ sub realTimeColl {
 }
 
 END
+=rem
   my $separator = qr{<\/li>\s*<li class="mb_basic">|<li class="mb_basic">|<\/li>}o;
   my @items = split(/($separator)/o, $html);
   foreach ( @items ) {
@@ -141,9 +135,19 @@ END
     ! make_autolink($1,$class,$source) !isogxe;
   }
   my $modified = join("<!-- XYZ -->", @items);
-  $modified .= get_live_search_coll("10.30.127.166:8080", 20);
-  $modified .= get_live_search_coll("10.30.127.167:1777", 20);
-  $modified .= get_live_search_coll("10.30.127.168:1777", 30);
+=cut
+  my $separator = qr{<div \s+ id="liveSearchColl">}isox;
+  my ($modified, undef) = split(/($separator)/o, $html);
+  $modified .= <<END;
+<style type="text/css">
+$css
+</style>
+END
+
+  $modified .= get_live_search_coll("10.30.127.166:8080", 10);
+  $modified .= get_live_search_coll("10.30.127.167:1777", 10);
+  $modified .= get_live_search_coll("10.30.127.168:1777", 20);
+  $modified .= get_live_search_coll("10.30.127.169:1777", 30);
   return $modified;
 }
 
