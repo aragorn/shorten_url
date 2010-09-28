@@ -64,13 +64,14 @@ END
 my $issue_level = $result->{issue_level};
 my $issue_score = sprintf("%2.2f", $result->{issue_score});
 my $issue_values = $result->{issue_values};
+my $slope_max   = sprintf("%2.3f", $result->{statistical_data}->{slope_max});
 
 my %cnt;
 map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
 print <<END;
 <div id="liveSearchColl" class="liveSearchColl">
  <div class="collTitle">
-   <h2 class="fL">실시간</h2>
+   <h2 class="fL">&nbsp;</h2>
    <!--span class="tit_add lsp fL"> 
      <span class="ico_updating fL" id="icoUpdate" style="display:block;"><img width="10" height="10" alt="업데이트중" src="http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_live_search_updating.gif"></span> 
      <span class="ico_stand fL" id="icoStand" style="display:none;"></span> 
@@ -82,6 +83,7 @@ print <<END;
    <span class="tit_add fL">
      <span class="g_tit">level $issue_level :$issue_score</span> /
      <span class="g_tit">$issue_values</span> /
+     <span class="g_tit">$slope_max</span> /
      <!--span class="g_tit">$server</span> / -->
      <!--span class="g_tit">$cnt{page_start}-$cnt{page_end}</span> / -->
      <span class="g_tit">n=$count</span> /
