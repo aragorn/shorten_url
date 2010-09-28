@@ -63,6 +63,7 @@ END
 
 my $issue_level = $result->{issue_level};
 my $issue_score = sprintf("%2.2f", $result->{issue_score});
+my $issue_values = $result->{issue_values};
 
 my %cnt;
 map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
@@ -80,7 +81,8 @@ print <<END;
    </span-->
    <span class="tit_add fL">
      <span class="g_tit">level $issue_level :$issue_score</span> /
-     <span class="g_tit">$server</span> /
+     <span class="g_tit">$issue_values</span> /
+     <!--span class="g_tit">$server</span> / -->
      <!--span class="g_tit">$cnt{page_start}-$cnt{page_end}</span> / -->
      <span class="g_tit">n=$count</span> /
      <span class="g_tit">총 $cnt{total_count}\건</span>
