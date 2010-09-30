@@ -45,6 +45,8 @@ sub parse_xml_result
     map { print "$path atts{$_}=$atts{$_}\n"; } keys %atts if keys %atts > 0;
 
     if    ($path eq q{r} or $path eq q{r/m} ) { return; }
+    elsif ($path eq q{r/m/statistical_data})  { $result{statistical_data} = {}; return; }
+    elsif ($path =~ q{r/m/statistical_data/})  { print "$path\n"; return; }
     elsif ($path =~ m{^r/m/}o )     { return; }
     elsif ($path eq q{r/g})         { return; }
     elsif ($path eq q{r/ds})        { $result{ds} = []; return; }
@@ -81,6 +83,7 @@ print "$path started - unexpected\n";
     if    ($path eq q(r/m/c)  )     { $result{total_count} = $str; }
     elsif ($path eq q(r/m/pc) )     { $result{page_count}  = $str; }
     elsif ($path eq q(r/m/is-end) ) { $result{is_end} = $str eq 'False' ? 0 : 1; }
+    elsif ($path =~ m{^r/m/statistical_data/([\w\-]+)$}o ) { $result{statistical_data}->{$1} .= $str; }
     elsif ($path =~ m{^r/m/([\w\-]+)$}o ) { $result{$1} .= $str; }
     elsif ($path eq q(r/g) )        { ; } # ignore
     elsif ($path =~ m{^r/ds/data/([\w\-]+)$}o ) { $doc{$1} .= $str; }
