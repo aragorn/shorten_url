@@ -18,13 +18,13 @@ my $q       = new CGI;
 my $url     = param('u')       || "";
 my $referer = param('referer') || "";
 my $format  = param('fmt')     || "json";
-my $charset = param('charset')   || "utf-8";
+our $charset = param('charset')   || "utf-8";
 $charset = "utf-8" if $charset =~ m/^utf-?8$/io;
-my $callback = param('callback') || "socialFunc";
+our $callback = param('callback') || "socialFunc";
 my $fetch   = param('fetch')   || 'yes';
 my $save    = param('save')    || 'yes';
 my $shorten = new Daum::ShortenURL;
-my $json    = new JSON; $json->allow_nonref;
+our $json    = new JSON; $json->allow_nonref;
 $q->charset($charset); # for proper escapeHTML
 binmode STDOUT, ":encoding(UTF-8)" if $charset eq "utf-8";
 
@@ -32,10 +32,10 @@ my $output_type = "application/json";
 $output_type = "application/javascript"  if $format eq "js";
 $output_type = "text/html" if $format eq "html";
 $output_type = "text/xml"  if $format eq "xml";
-my $top_label = "preview";
+our $top_label = "preview";
 
 print $q->header(-charset=>$charset, -type=>$output_type);
-print_header($format);
+prn_header($format);
 
 my ($row,$res) = $shorten->lookup_local($url,$referer);
 $shorten->forward($url) unless exists $row->{url_id};
@@ -88,25 +88,26 @@ END
 
 if (url(-absolute=>1) =~ m/debug/) {
   my ($t2, $t02) = (new Benchmark, [gettimeofday]);
-  print_debug($format, "elapsed time=", tv_interval($t01, $t02), "secs");
-  print_debug($format, "benchmark=", timestr(timediff($t2, $t1)));
-  print_debug($format, "loaded from local db") if $row->{url_id};
-  print_debug($format, "fetch=$fetch");
+  prn_debug($format, "elapsed time=", tv_interval($t01, $t02), "secs");
+  prn_debug($format, "benchmark=", timestr(timediff($t2, $t1)));
+  prn_debug($format, "loaded from local db") if $row->{url_id};
+  prn_debug($format, "fetch=$fetch");
 
   foreach my $k ( keys %{$row} )
-  { next if $k =~ m/^_/; print_debug($format, "row{$k} = ". escape($row->{$k}) ); }
-  foreach ( @DEBUG ) { print_debug($format, $_); }
-  foreach ( $shorten->debug ) { print_debug($format, $_); }
+  { next if $k =~ m/^_/; prn_debug($format, "row{$k} = ". escape($row->{$k}) ); }
+  foreach ( @DEBUG ) { prn_debug($format, $_); }
+  foreach ( $shorten->debug ) { prn_debug($format, $_); }
   print p({class=>'debug'}, "reload ",
           a({href=>$q->script_name."?".$q->query_string},
             $q->unescape($q->script_name ."?". $q->query_string))),"\n" if $format eq "html";
 }
-print_footer($format);
+prn_footer($format);
 
 exit;
 
-my $debug_no = 0;
-sub print_debug {
+our $debug_no = 0;
+
+sub prn_debug {
   my $type = shift || "json";
   my $msg = join("", @_);
   $msg = Encode::encode($charset, $msg);
@@ -117,14 +118,14 @@ sub print_debug {
   else                    { print qq(<p class="debug">$msg</p>\n); }
 }
 
-sub print_header {
+sub prn_header {
   my $type = shift || "json";
   if    ($type eq "js"  ) { print qq#if(typeof $callback === "function") $callback({"$top_label": {\n#; }
   elsif ($type eq "json") { print qq({"$top_label": {\n); }
   elsif ($type eq "xml" ) { print qq(<?xml version="1.0" encoding="UTF-8"?>\n<$top_label>\n); }
   else                    { print qq(<div class="$top_label">\n); }
 }
-sub print_footer {
+sub prn_footer {
   my $type = shift || "json";
   if    ($type eq "js"  ) { print qq#"dummy":"null"}});\n#; }
   elsif ($type eq "json") { print qq("dummy":"null"}}\n); }
