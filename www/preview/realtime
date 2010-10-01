@@ -121,6 +121,7 @@ foreach my $doc ( @{$result->{ds}} )
   <div class="box_con">
    <span class="wrap_time"><a href="$doc_url" target="_blank" class="bl_sstit"><span id="getRealIndexTime_0"><script type="text/javascript">try{document.write(_jsMakeRealTimeDate('$pub_time'));}catch(e){}</script></span></a>
      <span class="bl_sstit">$short_score</span>
+     <span class="bl_sstit">$source_id</span>
    </span>
 END
   

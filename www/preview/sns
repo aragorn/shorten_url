@@ -276,7 +276,7 @@ END
       <span class="vline">|</span>
       <a href="$url" target="_blank" class="getTime">$write_time
         <span id="getRealIndexTime_0" class="getTime">
-        <script type="text/javascript">try{document.write(_jsMakeRealTimeDate(''));}catch(e){}</script>
+        <script type="text/javascript">try{document.write(_jsMakeRealTimeDate('$writedttm'));}catch(e){}</script>
         </span>
       </a>
       <span class="vline">|</span>
