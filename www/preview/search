@@ -145,11 +145,11 @@ $css
 END
 
   $modified .= get_live_search_coll("10.30.127.166:8080", 10);
-  $modified .= get_live_search_coll("10.30.127.167:1777", 10);
-  $modified .= get_live_search_coll("10.30.127.168:1777", 10);
-  $modified .= get_live_search_coll("10.30.127.169:1777", 10);
-  $modified .= get_live_search_coll("10.30.127.170:1777", 10);
-  $modified .= get_live_search_coll("10.30.127.171:1777", 10);
+  $modified .= get_live_search_coll("10.30.127.167:8080", 10);
+  $modified .= get_live_search_coll("10.30.127.168:8080", 10);
+  $modified .= get_live_search_coll("10.30.127.169:8080", 10);
+  $modified .= get_live_search_coll("10.30.127.170:8080", 10);
+  $modified .= get_live_search_coll("10.30.127.171:8080", 10);
   return $modified;
 }
 
