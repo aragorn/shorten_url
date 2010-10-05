@@ -24,7 +24,7 @@ our $callback = param('callback') || "socialFunc";
 my $fetch   = param('fetch')   || 'yes';
 my $save    = param('save')    || 'yes';
 my $shorten = new Daum::ShortenURL;
-our $json    = new JSON; $json->allow_nonref;
+our $json    = new JSON; $json->allow_nonref->allow_blessed;
 $q->charset($charset); # for proper escapeHTML
 binmode STDOUT, ":encoding(UTF-8)" if $charset eq "utf-8";
 
@@ -41,16 +41,16 @@ my ($row,$res) = $shorten->lookup_local($url,$referer);
 $shorten->forward($url) unless exists $row->{url_id};
 
 if (url(-absolute=>1) =~ m/debug/) {
-  $fetch   = param('fetch') || 'no';
+  $fetch   = param('fetch') || 'yes';
   $save    = param('save')  || 'no';
 }
 
 if (not exists $row->{url_id} and $fetch eq 'yes' and $save eq 'yes') {
-  print p({class=>'debug'}, "executes fetch_and_save($url,$referer)")."\n"
+  prn_debug($format, "executes fetch_and_save($url,$referer)")
     if url(-absolute=>1) =~ m/debug/;
   ($row,$res) = $shorten->fetch_and_save($url,$referer);
 } elsif (not exists $row->{url_id} and $fetch eq 'yes') {
-  print p({class=>'debug'}, "executes fetch($url,$referer)")."\n"
+  prn_debug($format, "executes fetch($url,$referer)")
     if url(-absolute=>1) =~ m/debug/;
   ($row,$res) = $shorten->fetch($url,$referer);
 }
