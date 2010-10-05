@@ -64,12 +64,16 @@ my $highlighted_url = $shorten->shorten_url($original_url);
      ($title, $original_url, $highlighted_url, $url)
   unless $charset eq "utf-8";
 
+my $display = "true";
+$display = "false" if length $title == 0 and $url eq $original_url;
+
 if ($format eq "json"
  or $format eq "js") {
   print qq("title": ), $json->encode($title), qq(,\n);
   print qq("url": ), $json->encode($url), qq(,\n);
   print qq("original_url": ), $json->encode($original_url), qq(,\n);
   print qq("highlighted_url": ), $json->encode($highlighted_url), qq(,\n);
+  print qq("display": ), $json->encode($display), qq(,\n);
 } elsif ($format eq "xml") {
   my ($esc_title, $esc_ourl, $esc_hurl, $esc_url)
     = map { $_ =~ s/\]\]>/\]>/og; $_; } ($title, $original_url, $highlighted_url, $url);
@@ -77,12 +81,14 @@ if ($format eq "json"
   print qq(<url><![CDATA[$esc_url]]></url>\n);
   print qq(<original_url><![CDATA[$esc_ourl]]></original_url>\n);
   print qq(<highlighted_url><![CDATA[$esc_ourl]]></highlighted_url>\n);
+  print qq(<display><![CDATA[$display]]></display>\n);
 } else {
   print <<END;
 <p class="title"><a href="$original_url">$title</a></p>
 <p class="url highlighted">$highlighted_url</p>
 <p class="url original hidden">$original_url</p>
 <p class="url hidden">$url</p>
+<p class="display">$display</p>
 END
 }
 
