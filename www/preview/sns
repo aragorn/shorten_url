@@ -20,9 +20,8 @@ push @DEBUG, Daum::Breeze2::check_clock("elapsed time 1");
 
 my $bz2     = new Daum::Breeze2;
 my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
-#my $base_url = "http://10.31.125.234:7777/front/search.py?enc=utf8&q=%s";
-my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&submit=yes";
-#my $base_url = "http://110.45.208.13:8080/xml/144.200.iphone.xml?q=%s&p=%s";
+#my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&submit=yes";
+my $base_url = "http://10.30.144.204:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&submit=yes";
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $query   = param('q') || "iphone"; utf8::decode($query);
 my $page    = param('p') || "1";
@@ -269,10 +268,10 @@ END
     my ($docid, $edocid, $content, $url, $image_url, $channel_url, $writedttm, $sns_name )
      = map { utf8::decode($clustered->{$_}); $clustered->{$_} || "" }
        qw(docid edocid content url image_url channel_url writedttm sns_name);
-    my $cut = Daum::strhncpy($content, 60);
+    my $cut = Daum::strhncpy($content, 300);
     my $write_time = Daum::relative_time($writedttm, $result->{serverdttm});
     print <<END;
-    <li class="indent"><span class="base">$cut</span><!--class="base"-->
+    <li class="indent"><span class="base">$content</span><!--class="base"-->
       <span class="vline">|</span>
       <a href="$url" target="_blank" class="getTime">$write_time
         <span id="getRealIndexTime_0" class="getTime">

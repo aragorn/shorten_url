@@ -82,7 +82,7 @@ sub snsColl {
     $class = "twitter" if index($source, "twitter.com")> 0;
 
     s{ ( <span \s class="base"> )      # $1
-       ( .{0,500} )                    # $2
+       ( .{0,600} )                    # $2
        ( </span><!--class="base"--> )  # $3
      }
     ! $1.make_autolink($2,$class,$source).$3 !isogxe;
@@ -144,7 +144,7 @@ $css
 </style>
 END
 
-  $modified .= get_live_search_coll("10.30.127.166:8080", 10);
+  $modified .= get_live_search_coll("10.30.127.166:1777", 10);
   $modified .= get_live_search_coll("10.30.127.167:8080", 10);
   $modified .= get_live_search_coll("10.30.127.168:8080", 10);
   $modified .= get_live_search_coll("10.30.127.169:8080", 10);
@@ -214,10 +214,10 @@ sub make_autolink {
   s{ <a \s+ class="stit" 
         \s+ href=" \s*
         (https?://
-         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<]{0,200} )?
+         [\w-]+ (?: \.[\w-]+)+ (?: / [^\s\)\>\<"]{0,200} )?
         ) \s* "                       # $1
-        \s+ target="_blank"
-        (?: \s+ class="stit" )?> \s*
+        \s+ target="\w+"
+        (?: \s+ class="[\w\s-]*" )?> \s*
         ( (?: \w|<b>|</b>|[:/-]|[^\s\)\>\<] ){0,200}
         )                             # $2
         \s* </a>
