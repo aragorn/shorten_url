@@ -21,7 +21,7 @@ push @DEBUG, Daum::Breeze2::check_clock("elapsed time 1");
 my $bz2     = new Daum::Breeze2;
 my $image_url_default = "http://archive.search.daum-img.net/twitter.com/beyond_00.png";
 #my $base_url = "http://10.30.144.200:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&submit=yes";
-my $base_url = "http://10.30.144.204:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&submit=yes";
+my $base_url = "http://10.30.144.204:7777/front/search.py?enc=utf8&n=800&q=%s&p=%s&child=y&req=tab&submit=yes";
 my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 my $query   = param('q') || "iphone"; utf8::decode($query);
 my $page    = param('p') || "1";
