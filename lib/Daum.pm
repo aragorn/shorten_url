@@ -31,6 +31,8 @@ sub relative_time {
 sub dttm2epoch {
   my $dttm = shift;
   my ($year,$mon,$mday,$hour,$min,$sec) = unpack("a4a2a2a2a2a2", $dttm );
+  $mday = 1 unless $mday;
+  $mon = 1 unless $mon;
   return timelocal($sec,$min,$hour,$mday,$mon-1,$year);
 }
 
