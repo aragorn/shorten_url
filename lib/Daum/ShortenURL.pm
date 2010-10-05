@@ -139,7 +139,7 @@ sub fetch {
     $row->{http_code}      = $code;
     $row->{mime_type}      = $type;
     $row->{original_title} = Daum::utf8_string($title,$charset);
-    $row->{original_url}   = $res->request->uri;
+    $row->{original_url}   = sprintf("%s", $res->request->uri);
     $row->{charset}        = $charset;
     #my $content  = $res->decoded_content;
     push @DEBUG, "status=[$status]";
