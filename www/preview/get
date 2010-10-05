@@ -55,7 +55,8 @@ if (not exists $row->{url_id} and $fetch eq 'yes' and $save eq 'yes') {
   ($row,$res) = $shorten->fetch($url,$referer);
 }
 
-my ($title,$original_url) = map { $row->{$_} || "" } qw(original_title original_url);
+my ($title,$original_url,$http_code) = 
+  map { $row->{$_} || "" } qw(original_title original_url http_code);
 #$title = "제목이 없습니다" unless $title;
 my $highlighted_url = $shorten->shorten_url($original_url);
 
@@ -67,6 +68,7 @@ my $highlighted_url = $shorten->shorten_url($original_url);
 my $display = "true";
 $display = "false" if length $title == 0 and $url eq $original_url;
 $display = "false" if length $original_url == 0;
+$display = "false" unless $http_code eq "200";
 
 if ($format eq "json"
  or $format eq "js") {
@@ -75,6 +77,7 @@ if ($format eq "json"
   print qq("original_url": ), $json->encode($original_url), qq(,\n);
   print qq("highlighted_url": ), $json->encode($highlighted_url), qq(,\n);
   print qq("display": ), $json->encode($display), qq(,\n);
+  print qq("http_code": ), $json->encode($http_code), qq(,\n);
 } elsif ($format eq "xml") {
   my ($esc_title, $esc_ourl, $esc_hurl, $esc_url)
     = map { $_ =~ s/\]\]>/\]>/og; $_; } ($title, $original_url, $highlighted_url, $url);
@@ -83,6 +86,7 @@ if ($format eq "json"
   print qq(<original_url><![CDATA[$esc_ourl]]></original_url>\n);
   print qq(<highlighted_url><![CDATA[$esc_ourl]]></highlighted_url>\n);
   print qq(<display><![CDATA[$display]]></display>\n);
+  print qq(<http_code><![CDATA[$http_code]]></http_code>\n);
 } else {
   print <<END;
 <p class="title"><a href="$original_url">$title</a></p>
@@ -90,6 +94,7 @@ if ($format eq "json"
 <p class="url original hidden">$original_url</p>
 <p class="url hidden">$url</p>
 <p class="display">$display</p>
+<p class="http_code">$http_code</p>
 END
 }
 
