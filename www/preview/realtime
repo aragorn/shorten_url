@@ -70,7 +70,7 @@ my %cnt;
 map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
 print <<END;
 <div id="liveSearchColl" class="liveSearchColl">
- <div class="collTitle">
+ <div class="collTitle" style="height: auto;">
    <h2 class="fL">&nbsp;</h2>
    <!--span class="tit_add lsp fL"> 
      <span class="ico_updating fL" id="icoUpdate" style="display:block;"><img width="10" height="10" alt="업데이트중" src="http://imgsrc.search.daum-img.net/search_all/2010/icon/ico_live_search_updating.gif"></span> 
@@ -80,11 +80,11 @@ print <<END;
      <span class="ico_stop fL" id="btnRealTimeRun1"><a class="base fwn" href="javascript:_jsChangeRealTimeFlag();">일시 정지</a></span> 
      <span class="ico_play fL" id="btnRealTimeRun2" style="display:none"><a class="base fwn" href="javascript:_jsChangeRealTimeFlag();">다시 시작</a></span>
    </span-->
-   <span class="tit_add fL">
+   <span class="tit_add">
      <span class="g_tit">level $issue_level :$issue_score</span> /
      <span class="g_tit">$issue_values</span> /
-     <span class="g_tit">$slope_max</span> /
-     <!--span class="g_tit">$server</span> / -->
+     <span class="g_tit">slope_max:$slope_max</span> /
+     <span class="g_tit">$server</span> /
      <!--span class="g_tit">$cnt{page_start}-$cnt{page_end}</span> / -->
      <span class="g_tit">n=$count</span> /
      <span class="g_tit">총 $cnt{total_count}\건</span>
