@@ -7,9 +7,11 @@ use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use CGI::Carp qw(fatalsToBrowser);
 use LWP::Simple qw(!head);
 use XML::Parser;
+use List::Util qw(min max);
 use Data::Dumper;
 use Daum;
 use Daum::Breeze2;
+use POSIX;
 
 Daum::Breeze2::init_benchmark();
 
@@ -28,6 +30,8 @@ my $count   = param('n') || "10";
 my $where   = param('w') || "tot";
 my $source_id = param('source_id') || "";
 my $server  = param('server') || "10.30.127.227:8080";
+
+our ($max_height, $min_height, $max_width,  $min_width  ) = (40, 2, 23, 2);
 
 print $q->header(-charset=>'utf-8', -type=>'text/plain');
 
@@ -65,6 +69,7 @@ my $issue_level = $result->{issue_level};
 my $issue_score = sprintf("%2.2f", $result->{issue_score});
 my $issue_values = $result->{issue_values};
 my $slope_max   = sprintf("%2.3f", $result->{statistical_data}->{slope_max});
+my $total_count = $result->{total_count};
 
 my %cnt;
 map { $cnt{$_} = Daum::Breeze2::commify($result->{$_} || 0); } qw(total_count page_start page_end);
@@ -84,19 +89,37 @@ print <<END;
      <span class="g_tit">level $issue_level :$issue_score</span> /
      <span class="g_tit">$issue_values</span> /
      <span class="g_tit">slope_max:$slope_max</span> /
-     <span class="g_tit">$server</span> /
+     <span class="g_tit"><a href="$search_url">$server</a></span> /
      <!--span class="g_tit">$cnt{page_start}-$cnt{page_end}</span> / -->
      <span class="g_tit">n=$count</span> /
      <span class="g_tit">총 $cnt{total_count}\건</span>
    </span> 
  </div>
+END
+
+print get_timeline($result->{statistical_data}, $total_count);
+=rem
+print get_timeline($result->{statistical_data}, 20000);
+print get_timeline($result->{statistical_data}, 5000);
+print get_timeline($result->{statistical_data}, 2000);
+print get_timeline($result->{statistical_data}, 1600);
+print get_timeline($result->{statistical_data}, 1200);
+print get_timeline($result->{statistical_data}, 800);
+print get_timeline($result->{statistical_data}, 400);
+print get_timeline($result->{statistical_data}, 200);
+print get_timeline($result->{statistical_data}, 100);
+print get_timeline($result->{statistical_data}, 50);
+print get_timeline($result->{statistical_data}, 20);
+=cut
+
+print <<END;
  <div class="live_search_body">
    <ul class="list_live_search" id="realTimeList">
 END
 
 my $page_count = $result->{page_count} || 0;
 $page_count = 4 if $where eq "tot" and $page_count > 4;
-$page_count = 30 if $page_count > 30;
+$page_count = 40 if $page_count > 40;
 
 #foreach my $doc ( map(+( $result->{ds}->[$_] ), 0..($page_count-1)) )
 foreach my $doc ( @{$result->{ds}} )
@@ -239,5 +262,119 @@ if (url(-absolute=>1) =~ m/debug/) {
 print "-->\n";
 
 exit;
+
+#print qq(<div class="bar" style="" title="max: $max_slot_min"></div>);
+sub bar_width {
+  my $value = shift;
+  my $width = int ( 4.2 * log(0.01+$value/3) / log(4.0) );
+  $width = max($min_width, $width);
+  return min($max_width, $width);
+}
+
+sub get_timeline
+{
+  my $stat = shift;
+  my $total_count = shift;
+  my @html;
+  push @html, <<END;
+<style type="text/css">
+.visualClear { clear: both; }
+
+div.timeline-container {
+  position: relative;
+}
+
+div.timeline-container div.panel {
+  position: absolute;
+  width: 90px; height: 15px;
+  font-size: 9pt;
+  xxoutline: 1px dotted red;
+  margin: 5px 0 15px 0;
+  padding-top: 40px;
+  xxdisplay: none;
+}
+div.timeline-container div.panel.prev {
+  position: relative;
+  float: left;
+  font-size: 6pt;
+  width: 15px;
+  margin: 0 0 5px 0;
+  padding-top: 45px;
+}
+
+div.timeline-container div.bar {
+  background-color: transparent;
+  cursor: pointer;
+  float: left;
+  margin-right: 12px;
+  position: relative;
+  width: 15px;
+  height: 10px;
+  z-index: 10;
+  outline: 0px solid gray;
+}
+
+div.timeline-container div.bar.twitter { background: #33f; width: 100%; outline: 0; }
+div.timeline-container div.bar.others  { background: #ccc; width: 100%; outline: 0; }
+
+</style>
+<div class="timeline-container">
+ <div class="panel prev">&lt;&lt;</div>
+END
+
+  my @panels = map {
+    my $time = time - $_*90*60;
+    my $string = POSIX::strftime("%p %l:%M", localtime($time));
+    utf8::decode($string);
+    $string;
+  } ( 4,3,2,1 );
+
+  push @html, <<END;
+ <div class="panel" style="left:  15px; width: 090px; ">$panels[0]</div>
+ <div class="panel" style="left: 105px; width: 090px; ">$panels[1]</div>
+ <div class="panel" style="left: 195px; width: 090px; ">$panels[2]</div>
+ <div class="panel" style="left: 285px; width: 090px; ">$panels[3]</div>
+END
+
+  my $max_slot_min = max(
+    map { $stat->{$_} }
+    map { qq(slot_min_).$_ }
+      ( 330,300,270,240,210,180,150,120,90,60,30,0 )
+  );
+
+  push @html, map {
+    my $bar_count    = $stat->{qq(slot_min_$_)} || 0;
+    my $twitter_count = $stat->{qq(twitter_min_$_)} || 0;
+    my $others_count  = $bar_count - $twitter_count;
+
+    my $bar_height     = int($max_height * $bar_count / $max_slot_min);
+    my $twitter_height = int($max_height * $twitter_count / $max_slot_min);
+    my $others_height  = $bar_height - $twitter_height;
+    my $bar_top = $max_height - $bar_height - 5;
+    $bar_height += 2 * $min_height + 1;
+    $twitter_height += $min_height;
+    $others_height  += $min_height;
+
+    my $width  = bar_width($total_count);
+    #int($max_width * $max_slot_min ) + $min_width;
+    #$height += int( $max_height * ( exp(1/$sqrt*log(0.01+$count)) / exp(1/$sqrt*log(1+$max_count)) ) );
+
+    my $twitter_top = 0;
+    my $others_top  = 1;
+
+    my $margin_right = 28 - $width;
+    qq(<div class="bar" style="height: $bar_height px; width: $width px; top: $bar_top px; margin-right: $margin_right px; " title="$_: $bar_count">)
+    . qq(<div class="bar twitter" style="height: $twitter_height px; top: $twitter_top px;" title="twitter $_: $twitter_count / $bar_count"></div>)
+    . qq(<div class="bar others" style="height: $others_height px; top: $others_top px; " title="others $_: $others_count / $bar_count"></div>)
+    .qq(</div>);
+  } ( 360,330,300,270,240,210,180,150,120,90,60,30,0 );
+
+  push @html, <<END;
+ <div class="visualClear"></div>
+</div>
+END
+
+  return @html;
+}
 
 1;
