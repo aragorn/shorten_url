@@ -146,6 +146,7 @@ END
 
   $modified .= get_live_search_coll("10.30.127.167:8080", 10); # front6
   $modified .= get_live_search_coll("10.30.127.166:1777", 10); # front5
+  $modified .= get_live_search_coll("10.30.127.167:8080", 30); # front6
   $modified .= get_live_search_coll("10.30.127.166:1777", 30); # front5
   #$modified .= get_live_search_coll("10.30.127.168:8080", 10); # front7
   #$modified .= get_live_search_coll("10.30.127.169:8080", 10); # front8
