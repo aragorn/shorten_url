@@ -140,6 +140,11 @@ sub html_head {
 
   my @html_head = split(/\r?\n/o, $html_head);
   foreach ( @html_head ) {
+    # DOCTYPE을 XHTML/Trasitional로 변경한다. redering 방식을 표준에 맞추어준다.
+    if ( $_ eq q(<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">) ) {
+      push @DEBUG, p("DOCTYPE was HTML 4.01 Transitional");
+      $_ = q(<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">);
+    }
     # charset을 euc-kr에서 utf-8로 변경한다. 실제 문자열의 charset은 $res->decoded_content
     # 를 사용하므로, 이미 utf-8로 변경된 상태이다.
     if ( $_ eq q(<meta http-equiv="Content-Type" content="text/html; charset=euc-kr">) ) {
