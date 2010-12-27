@@ -282,15 +282,16 @@ sub get_timeline
 
 div.timeline-container {
   position: relative;
+  border: 0px dotted blue;
+  padding: 5px 0 2px 0;
 }
 
 div.timeline-container div.panel {
   position: absolute;
-  width: 90px; height: 15px;
+  width: 90px; height: 18px;
   font-size: 9pt;
-  xxoutline: 1px dotted red;
-  margin: 5px 0 15px 0;
-  padding-top: 40px;
+  border: 0px dotted red;
+  padding-top: 50px;
   xxdisplay: none;
 }
 div.timeline-container div.panel.prev {
@@ -298,15 +299,13 @@ div.timeline-container div.panel.prev {
   float: left;
   font-size: 6pt;
   width: 15px;
-  margin: 0 0 5px 0;
-  padding-top: 45px;
 }
 
 div.timeline-container div.bar {
   background-color: transparent;
   cursor: pointer;
   float: left;
-  margin-right: 12px;
+  margin: 0;
   position: relative;
   width: 15px;
   height: 10px;
@@ -330,10 +329,10 @@ END
   } ( 4,3,2,1 );
 
   push @html, <<END;
- <div class="panel" style="left:  15px; width: 090px; ">$panels[0]</div>
- <div class="panel" style="left: 105px; width: 090px; ">$panels[1]</div>
- <div class="panel" style="left: 195px; width: 090px; ">$panels[2]</div>
- <div class="panel" style="left: 285px; width: 090px; ">$panels[3]</div>
+ <div class="panel" style="left:  15px; ">$panels[0]</div>
+ <div class="panel" style="left: 105px; ">$panels[1]</div>
+ <div class="panel" style="left: 195px; ">$panels[2]</div>
+ <div class="panel" style="left: 285px; ">$panels[3]</div>
 END
 
   my $max_slot_min = max(
@@ -350,7 +349,7 @@ END
     my $bar_height     = int($max_height * $bar_count / $max_slot_min);
     my $twitter_height = int($max_height * $twitter_count / $max_slot_min);
     my $others_height  = $bar_height - $twitter_height;
-    my $bar_top = $max_height - $bar_height - 5;
+    my $bar_top = $max_height - $bar_height;
     $bar_height += 2 * $min_height + 1;
     $twitter_height += $min_height;
     $others_height  += $min_height;
@@ -363,9 +362,9 @@ END
     my $others_top  = 1;
 
     my $margin_right = 28 - $width;
-    qq(<div class="bar" style="height: $bar_height px; width: $width px; top: $bar_top px; margin-right: $margin_right px; " title="$_: $bar_count">)
-    . qq(<div class="bar twitter" style="height: $twitter_height px; top: $twitter_top px;" title="twitter $_: $twitter_count / $bar_count"></div>)
-    . qq(<div class="bar others" style="height: $others_height px; top: $others_top px; " title="others $_: $others_count / $bar_count"></div>)
+    qq(<div class="bar" style="height: $bar_height\px; width: $width\px; top: $bar_top\px; margin-right: $margin_right\px; " title="$_: $bar_count">)
+    . qq(<div class="bar twitter" style="height: $twitter_height\px; top: $twitter_top\px;" title="twitter $_: $twitter_count / $bar_count"></div>)
+    . qq(<div class="bar others" style="height: $others_height\px; top: $others_top\px; " title="others $_: $others_count / $bar_count"></div>)
     .qq(</div>);
   } ( 360,330,300,270,240,210,180,150,120,90,60,30,0 );
 
