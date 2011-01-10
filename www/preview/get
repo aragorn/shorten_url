@@ -69,6 +69,7 @@ my $display = "true";
 $display = "false" if length $title == 0 and $url eq $original_url;
 $display = "false" if length $original_url == 0;
 $display = "false" unless $http_code eq "200";
+$display = "false" if $title =~ m/^Request Rejected/i;
 
 if ($format eq "json"
  or $format eq "js") {
