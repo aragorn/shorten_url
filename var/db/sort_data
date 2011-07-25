@@ -61,7 +61,7 @@ check_sem && SEM_CMD="sem -j+0 -i $$" # "--load +2"
 for FILE in data_*
 do
   SORTED_FILE=${FILE/#data/sorted}
-  set -x
+  #set -x
   TIMESTAMP_ORIG=`stat -c%y ${FILE}`
   TIMESTAMP_SORTED="undefined"
   [ -r ${SORTED_FILE} ] && TIMESTAMP_SORTED=`stat -c%y ${SORTED_FILE} 2>/dev/null`
