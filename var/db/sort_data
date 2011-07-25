@@ -57,6 +57,24 @@ fi
 
 check_sem && SEM_CMD="sem -j+0 -i $$" # "--load +2"
 
+#for FILE in data_000000000 data_000500000 
+for FILE in data_*
+do
+  SORTED_FILE=${FILE/#data/sorted}
+  set -x
+  TIMESTAMP_ORIG=`stat -c%y ${FILE}`
+  TIMESTAMP_SORTED="undefined"
+  [ -r ${SORTED_FILE} ] && TIMESTAMP_SORTED=`stat -c%y ${SORTED_FILE} 2>/dev/null`
+  [ "x${TIMESTAMP_ORIG}" == "x${TIMESTAMP_SORTED}" ] && continue
+
+  set -x
+  time sort -S 200M -k6 -t'	' -s -o ${SORTED_FILE} ${FILE}
+  touch -d "${TIMESTAMP_ORIG}" ${SORTED_FILE}
+  set +x
+done
+
+exit
+
 MAX_URL_ID=$(mysql --batch --skip-column-names <<-END
   select max(url_id) from url_translation;
 END
