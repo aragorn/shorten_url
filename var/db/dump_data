@@ -63,6 +63,9 @@ END
 )
 
 echo MAX_URL_ID=${MAX_URL_ID}
+
+#MAX_URL_ID=10000 # DEBUG
+
 FETCH_COUNT=500000
 URL_ID=0
 until (( URL_ID > MAX_URL_ID ))
@@ -83,9 +86,28 @@ do
   fi
 
   echo mysql between ${START_ID} and ${END_ID}
-  mysql --batch > ${OUTPUT_FILE} <<-END
-	select * from url_translation where url_id between ${URL_ID} and ${END_ID};
+  time mysql --batch > ${OUTPUT_FILE} <<-END
+
+  select url_id,  shorten_url, original_url, mime_type, original_title,
+         if(length(website)=0,
+           substring_index(
+             if(length(original_url)=0,
+               substring_index(shorten_url, '/', 3),
+               substring_index(original_url, '/', 3)
+             ),
+             '/',
+             -1
+           ),
+           website
+         ) as website,
+         created_on, updated_on, http_code, source
+  from url_translation
+  where url_id between ${URL_ID} and ${END_ID}
+  ;
 END
+#/* where url_id between 0 and 10000
+#    and length(website) = 0 */
+
 
   (( URL_ID += FETCH_COUNT ))
 
