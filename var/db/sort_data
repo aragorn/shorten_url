@@ -68,43 +68,10 @@ do
   [ "x${TIMESTAMP_ORIG}" == "x${TIMESTAMP_SORTED}" ] && continue
 
   set -x
-  time sort -S 200M -k6 -t'	' -s -o ${SORTED_FILE} ${FILE}
+  sed '1q' < ${FILE} > ${SORTED_FILE}
+  time sed '1d' < ${FILE} | sort -S 200M -k6 -t'	' -s -o ${SORTED_FILE}
   touch -d "${TIMESTAMP_ORIG}" ${SORTED_FILE}
   set +x
 done
 
 exit
-
-MAX_URL_ID=$(mysql --batch --skip-column-names <<-END
-  select max(url_id) from url_translation;
-END
-)
-
-echo MAX_URL_ID=${MAX_URL_ID}
-FETCH_COUNT=500000
-URL_ID=0
-until (( URL_ID > MAX_URL_ID ))
-do
-  (( START_ID=URL_ID ))
-  (( END_ID=URL_ID+FETCH_COUNT-1 ))
-  OUTPUT_FILE=`printf "data_%09d" ${URL_ID}`
-  if [[ -r ${OUTPUT_FILE} ]];
-  then
-    LAST_URL_ID=`tail -1 ${OUTPUT_FILE} | awk '{ print $1; }'`
-    #echo LAST_URL_ID=${LAST_URL_ID}
-    if [[ ${LAST_URL_ID} == ${END_ID} ]];
-    then
-      echo "LAST_URL_ID(${LAST_URL_ID})=END_ID(${END_ID})"
-      (( URL_ID += FETCH_COUNT ))
-      continue
-    fi
-  fi
-
-  echo mysql between ${START_ID} and ${END_ID}
-  mysql --batch > ${OUTPUT_FILE} <<-END
-	select * from url_translation where url_id between ${URL_ID} and ${END_ID};
-END
-
-  (( URL_ID += FETCH_COUNT ))
-
-done
