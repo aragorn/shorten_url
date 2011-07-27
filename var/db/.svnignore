@@ -1,3 +1,5 @@
 data_*
 sorted_*
+unique_*
+test_*
 .*.swp
