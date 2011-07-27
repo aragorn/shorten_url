@@ -57,9 +57,9 @@ fi
 
 check_sem && SEM_CMD="sem -j+0 -i $$" # "--load +2"
 
-for FILE in sorted_000000000 
+#for FILE in sorted_000000000 
 #for FILE in sorted_000000000 sorted_000500000 
-#for FILE in sorted_*
+for FILE in sorted_*
 do
   UNIQUE_FILE=${FILE/#sorted/unique}
   #set -x
@@ -68,6 +68,7 @@ do
   [ -r ${UNIQUE_FILE} ] && TIMESTAMP_UNIQUE=`stat -c%y ${UNIQUE_FILE} 2>/dev/null`
   [ "x${TIMESTAMP_ORIG}" == "x${TIMESTAMP_UNIQUE}" ] && continue
 
+  (( VERBOSE_MODE > 0 )) && echo counting duplicated websites of file, ${FILE}...
   #url_id	shorten_url	original_url	mime_type	original_title	website	created_on	updated_on	http_code	source
   #set -x
   cat ${FILE} | awk 'BEGIN {
@@ -77,6 +78,8 @@ do
     prev_website=""
 };
 {
+  website = $6
+  #print "website=" website ", prev_website=" prev_website
   if ( website == prev_website ) {
     lines[count++] = $0;
   } else {
@@ -94,13 +97,7 @@ END {
     print count, lines[i]
 }
 '  > ${UNIQUE_FILE}
-#' | uniq -c -f4 | sort -nr
-  #print $id, $surl, $ourl, $mime, $title, $website, $ctime, $utime, $http, $source;
-
-  #time sed '1d' < ${FILE} | sort -S 200M -k6 -t'	' -s > ${UNIQUE_FILE}
-  #time sort -S 200M -k6 -t'	' -s -o ${UNIQUE_FILE} ${FILE}
   touch -d "${TIMESTAMP_ORIG}" ${UNIQUE_FILE}
-  rm -f ${UNIQUE_FILE}
   set +x
 done
 
