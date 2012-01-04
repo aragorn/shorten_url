@@ -93,6 +93,13 @@ sub debug {
   return @DEBUG;
 }
 
+sub dbh_slave {
+  return $DBH_SLAVE;
+}
+
+sub dbh_master {
+  return $DBH_MASTER;
+}
 
 sub lookup_local {
   my ($self, $url, $referer) = @_;
@@ -225,27 +232,43 @@ sub forward {
 
 sub list {
   my ($self, $from, $count, $website, $original_url) = @_;
-  my $where = " where 1";
-  $where .= " and website like ?" if $website;
-  $where .= " and original_url like ?" if $original_url;
-  my $counting_sql = "select count(*) from url_translation $where";
+  $original_url = "";
+
+  my $where = "where 1"
+  my $where_and = "";
+  my @binded_vars;
+  if ( not $website and not $original_url ) {
+    $where = "where url_id between ? and ?"
+    push @binded_vars, $from, $from+$count;
+  }
+  if ( $website ) {
+    $where_and .= " and website like ?";
+    push @binded_vars, $website;
+  }
+  if ( $original_url ) {
+    $where_and .= " and original_url like ?";
+    push @binded_vars, $original_url;
+  }
+
+  map { push @binded_vars, $_ if $_; } ($website, $original_url);
+
+  my $counting_sql = "select count(*) from url_translation where 1 $where_and";
   my $listing_sql = qq(select * 
 from url_translation A inner join 
  (select url_id from url_translation
   $where
+  $where_and
   order by url_id asc
   limit ?, ?
  ) B on A.url_id = B.url_id
 );
-  my @binded_vars;
-  map { push @binded_vars, $_ if $_; } ($website, $original_url);
 
   my ($urls, $list);
-  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars, $from, $count);
+  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars, 0, $count);
   $urls = $DBH_SLAVE->selectrow_array($counting_sql, {}, @binded_vars);
   push @DEBUG, "counting failed - $urls: ".$DBH_SLAVE->errstr unless $urls;
   $from = int( $urls / $count ) * $count if $from < 0;
-  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, @binded_vars, $from, $count);
+  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, $from, $from+$count, @binded_vars, 0, $count);
   push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
   return ($urls,$list);
 }
