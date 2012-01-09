@@ -234,20 +234,21 @@ sub list {
   my ($self, $from, $count, $website, $original_url) = @_;
   $original_url = "";
 
-  my $where = "where 1"
+  my $where = "where 1";
   my $where_and = "";
-  my @binded_vars;
+  my (@binded_vars, @count_vars);
   if ( not $website and not $original_url ) {
-    $where = "where url_id between ? and ?"
+    $where = "where url_id between ? and ?";
     push @binded_vars, $from, $from+$count;
   }
   if ( $website ) {
     $where_and .= " and website like ?";
     push @binded_vars, $website;
+    push @count_vars, $website;
   }
   if ( $original_url ) {
     $where_and .= " and original_url like ?";
-    push @binded_vars, $original_url;
+    push @count_vars, $original_url;
   }
 
   map { push @binded_vars, $_ if $_; } ($website, $original_url);
@@ -264,11 +265,11 @@ from url_translation A inner join
 );
 
   my ($urls, $list);
-  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars, 0, $count);
-  $urls = $DBH_SLAVE->selectrow_array($counting_sql, {}, @binded_vars);
+  push @DEBUG, "listing_sql: $listing_sql", join(",", @binded_vars);
+  $urls = $DBH_SLAVE->selectrow_array($counting_sql, {}, @count_vars);
   push @DEBUG, "counting failed - $urls: ".$DBH_SLAVE->errstr unless $urls;
   $from = int( $urls / $count ) * $count if $from < 0;
-  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, $from, $from+$count, @binded_vars, 0, $count);
+  $list = $DBH_SLAVE->selectall_hashref($listing_sql, 'url_id', {}, @binded_vars, 0, $count);
   push @DEBUG, "listing failed - $list: ".$DBH_SLAVE->errstr unless $list;
   return ($urls,$list);
 }
