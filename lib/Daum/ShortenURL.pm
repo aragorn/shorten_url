@@ -56,7 +56,11 @@ BEGIN {
       DBUSER=>'aragorn', DBPASSWD=>'image' },
   );
 
-  my $http_host = join(":", CGI::server_name(), CGI::server_port());
+  my $server_name = CGI::server_name();
+  $server_name =~ s/\..*//;
+  my $server_port = CGI::server_port();
+
+  my $http_host = join(":", $server_name, $server_port);
   if ( exists $CONFIG_ALL{$http_host} ) { %CONFIG = %{$CONFIG_ALL{$http_host}}; }
   else                                  { %CONFIG = %{$CONFIG_ALL{default}}; }
 }
