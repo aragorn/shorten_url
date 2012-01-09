@@ -18,7 +18,8 @@ foreach ( sort keys %ENV )
 }
 print "</table>";
 
-print h2("CGI::http('http_host')=".$ENV{HTTP_HOST});
+print h2("CGI::http('HTTP_HOST')=", CGI::http('HTTP_HOST'));
+print h2("CGI::url(-base=>1)=", url(-base=>1));
 print "<table>";
 my @http_keys = http();
 foreach ( sort @http_keys )
