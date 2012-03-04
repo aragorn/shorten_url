@@ -18,7 +18,9 @@ binmode STDOUT, ":encoding(UTF-8)";
 our $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json    = new JSON; $json->allow_nonref->allow_blessed;
 
-my (undef, $query) = split(/\//o, path_info() || "/undefined", 2);
+# You should not call CGI::path_info() which does not support
+# debugging mode from cmdline input.
+my (undef, $query) = split(/\//o, $q->path_info() || "/undefined", 2);
 my $from     = param('from')  || 0;
 my $count    = param('count') || 100;
 my $callback = param('callback');
@@ -91,7 +93,7 @@ sub json_header {
   my ($query, $callback) = @_;
   my $header = "";
   if ($callback) {
-    $json .= <<END;
+    $header .= <<END;
 if (typeof $callback === "function") $callback(
 END
   }
