@@ -14,126 +14,90 @@ use Time::HiRes qw(gettimeofday tv_interval);
 my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
 
 CGI->compile();
-binmode STDOUT, ":encoding(UTF-8)";
+
+# This line should be commented out if output data is encoded properly.
+#binmode STDOUT, ":encoding(UTF-8)";
+
 our $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json    = new JSON; $json->allow_nonref->allow_blessed;
 
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
-my (undef, $query) = split(/\//o, $q->path_info() || "/undefined", 2);
+my (undef, $query) = split(/\//o, $q->path_info() || "/index", 2);
 my $from     = param('from')  || 0;
 my $count    = param('count') || 100;
 my $callback = param('callback');
 my $content_type = "application/json";
    $content_type = "application/javascript" if $callback; # JSONP
+my $full_url = $q->url(-full=>1);
 
 print $q->header(-charset=>'utf-8', -type=>$content_type);
+print jsonp_header($callback);
 
-print json_header($query, $callback);
+my %dispatch = (
+  realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
+  realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
+);
 
-if ( $query eq "status" ) {
-    my ($min, $max) = status();
-    print json_status("breeze", $min, $max);
-} elsif ( $query eq "list" ) {
-    print qq("data": [\n);
-    my $list = list($from, $count);
-    my @ids = sort keys %{$list};
-    my $last_id = $ids[$#ids];
-    foreach my $id ( @ids ) {
-      my ($doc_id, $doc_url, $channel_id, $title, $description,
-          $tag, $user_id, $nickname, $pub_date,
-          $available_code, $available_reason,
-          $doc_rank, $image_count, $vod_count)
-      = map { $list->{$id}->{$_} }
-        qw(doc_id doc_url channel_id title description
-           tag user_id nickname pub_date
-           available_code available_reason
-           doc_rank image_count vod_count);
-      foreach ( qw(title description user_id nickname available_reason) ) {
-        eval qq{
-          utf8::is_utf8(\$$_) or \$$_ = Encode::decode("utf-8", \$$_);
-        };
-      }
-
-      print qq({
-  "id": $id,
-  "doc_id": "$doc_id",
-  "doc_url": ), $json->encode($doc_url), qq(,
-  "channel_id": "$channel_id",
-  "title": ), $json->encode($title), qq(,
-  "description": ), $json->encode($description), qq(,
-  "tag": ), $json->encode($tag), qq(,
-  "user_id": ), $json->encode($user_id), qq(,
-  "nickname": ), $json->encode($nickname), qq(,
-  "pub_date": ), $json->encode($pub_date), qq(,
-  "available_code": ), $json->encode($available_code), qq(,
-  "available_reason": ), $json->encode($available_reason), qq(,
-  "doc_rank": ), $json->encode($doc_rank), qq(,
-  "image_count": ), $json->encode($image_count), qq(,
-  "vod_count": ), $json->encode($vod_count), qq(,
-  "dummy": null
-});
-  
-#          tag user_id nickname pub_date
-#          available_code available_reason
-#          doc_rank image_count vod_count
-      print ",\n" unless $id == $last_id;
-    }
-
-    print qq(],\n);
+my $output = {};
+if ( defined $dispatch{$query} ) {
+  my %result = &{$dispatch{$query}};
+  map { $output->{$_} = $result{$_}; } keys %result;
+}
+elsif ( $query eq "index" ) {
+  my @available_queries = sort keys %dispatch;
+  $output->{index} = { map { $_ => "$full_url/$_" } @available_queries };
+} else {
+  $output->{hello} = "world!";
 }
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
-print json_footer($BM1, $BM2, $T01, $T02);
-
+$output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
+print $json->utf8(1)->pretty(1)->encode($output);
+print jsonp_footer($callback);
 
 1;
 
-sub json_header {
-  my ($query, $callback) = @_;
-  my $header = "";
-  if ($callback) {
-    $header .= <<END;
+sub jsonp_header {
+  my ($callback) = @_;
+  return <<END if $callback;
 if (typeof $callback === "function") $callback(
 END
-  }
-  $header .= <<END;
-{ "version": "1.0",
-  "$query": {
-END
-  return $header;
+  return "";
 }
 
-sub json_status {
-  my ($format, $min, $max) = @_;
-  my $full_url = url(-full=>1);
-  return <<END
-"status": {
-  "min_id": $min,
-  "min_url": "$full_url/$format/list?from=$min",
-  "max_id": $max,
-  "max_url": "$full_url/$format/list?from=$max"
-},
+sub jsonp_footer {
+  my ($callback) = @_;
+  return <<END if $callback;
+);
 END
+  return "";
 }
 
-sub json_footer {
+sub debug_info {
   my ($t1, $t2, $t01, $t02) = @_;
   my $elapsed   = tv_interval($t01, $t02);
   my $benchmark = timestr(timediff($t2, $t1));
   my $mod_perl  = $ENV{MOD_PERL} || "";
-  my $footer = <<END;
-  },
-  "debug_info": {
-    "elapsed": "$elapsed secs",
-    "benchmark": "$benchmark",
-    "mod_perl": "$mod_perl"
-  }
+  return { 
+    elapsed   => "$elapsed secs",
+    benchmark => "$benchmark",
+    mod_perl  => "$mod_perl",
+    json      => JSON->backend,
+    encoding_test => "한글이 제대로 보이는지 점검합니다.",
+  };
 }
-END
-  $footer .= qq#);\n# if $callback;
-  return $footer;
+
+sub next_urls {
+  my ($uri) = @_;
+  return map { "$_$uri" } qw(
+        http://search-twitter-app1:3080
+        http://search-twitter-app2:3080
+        http://search-twitter-app3:3080
+    );
 }
+
+###############################################################################
 
 sub realtime_dbh {
   use DBI;
@@ -145,26 +109,53 @@ sub realtime_dbh {
   return $dbh;
 }
 
-sub list {
-  my $seq = shift;
-  my $count = shift;
-
-  my $dbh = realtime_dbh();
-  my $sql = q(select * from realtime_article where id between ? and ?);
-
-  my $list = $dbh->selectall_hashref($sql, 'id', {}, $seq, $seq+$count-1);
-  return $list;
-
-  my @list;
-
-  return @list;
-}
-
-sub status {
+sub realtime_ddm_dynamic_status {
   my $dbh = realtime_dbh();
   my ($max_id) = $dbh->selectrow_array( q{select max(id) from realtime_article});
   my ($min_id) = $dbh->selectrow_array( q{select min(id) from realtime_article});
 
-  return ($min_id, $max_id);
+  return ( status => {
+    min_id  => $min_id,
+    min_url => "$full_url/realtime_ddm_dynamic_list?from=$min_id",
+    max_id  => $max_id,
+    max_url => "$full_url/realtime_ddm_dynamic_list?from=$max_id",
+  });
 }
 
+sub realtime_ddm_dynamic_list {
+  my $from     = param('from');
+  my $count    = param('count') || 100;
+
+  my $dbh = realtime_dbh();
+  ($from) = $dbh->selectrow_array(
+              q{select max(id) from realtime_article}
+            ) unless defined $from;
+
+  my $sql = q(select * from realtime_article where id between ? and ?);
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $from, $from+$count-1);
+
+  my $max_id = $from;
+  foreach my $row ( @{$list} ) {
+    # decode octet-stream to utf-8 string
+    foreach ( qw(title description user_id nickname available_reason) ) {
+      eval {
+        if ( defined $row->{$_} ) {
+          #my $is_utf8 = utf8::is_utf8($row->{$_});
+          #print "BEFORE decode $_ is_utf8? =$is_utf8\n";
+          utf8::is_utf8($row->{$_})
+            or $row->{$_}
+                 = Encode::decode("utf-8", $row->{$_});
+          #my $is_utf8 = utf8::is_utf8($row->{$_});
+          #print "AFTER  decode $_ is_utf8? =$is_utf8\n";
+        };
+      };
+    }
+    $max_id = $row->{id} if $max_id < $row->{id};
+  }
+  my $next = $max_id + 1;
+  return (
+    next_urls      => [ next_urls($q->url(-path_info=>1,-absolute=>1) . "?from=$next&count=$count") ],
+    format_version => "json_breeze_ds_0.1",
+    data           => $list,
+  );
+}
