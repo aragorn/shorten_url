@@ -179,13 +179,13 @@ sub election_district {
 SELECT @rownum := @rownum + 1 AS rownum,
        homo_id, cp_person_id, candidate_name, election_symbol,
        cp_party_id_1, cp_party_id_2, party_name, party_short_name,
-       image_url, twitter_id,
+       twitter_id,
        tw_mentioned_count,
        (tw_mentioned_count / 200 * 100) AS tw_mentioned_share
 FROM
 ( SELECT homo_id, cp_person_id, candidate_name, election_symbol,
          cp_party_id_1, cp_party_id_2, party_name, party_short_name,
-         image_url, twitter_id,
+         twitter_id,
          ( FLOOR(RAND()*5) +
            FLOOR(RAND()*1.5)*FLOOR(RAND()*50) +
            FLOOR(RAND()*1.9)*FLOOR(RAND()*100) ) AS tw_mentioned_count
@@ -205,7 +205,6 @@ FROM
     cp_party_id_2 => "CP 정당ID",
     party_name => "정당이름",
     party_short_name => "정당이름 약칭",
-    image_url => "인물 이미지URL",
     twitter_id => "트위터ID",
     tw_mentioned_count => "트위터에서 이름이 언급된 횟수",
     tw_mentioned_share => "트위터에서 이름이 언급된 점유율(%)",
