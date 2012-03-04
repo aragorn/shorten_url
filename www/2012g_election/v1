@@ -1,0 +1,168 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+FindBin::again();
+use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
+use CGI qw(:standard escape escapeHTML -utf8 -oldstyle_urls);
+use JSON;
+use Encode;
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+
+my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
+
+CGI->compile();
+binmode STDOUT, ":encoding(UTF-8)";
+our $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $json    = new JSON; $json->allow_nonref->allow_blessed;
+
+my (undef, $query) = split(/\//o, path_info() || "/undefined", 2);
+my $from     = param('from')  || 0;
+my $count    = param('count') || 100;
+my $callback = param('callback');
+my $content_type = "application/json";
+   $content_type = "application/javascript" if $callback; # JSONP
+
+print $q->header(-charset=>'utf-8', -type=>$content_type);
+
+print json_header($query, $callback);
+
+if ( $query eq "status" ) {
+    my ($min, $max) = status();
+    print json_status("breeze", $min, $max);
+} elsif ( $query eq "list" ) {
+    print qq("data": [\n);
+    my $list = list($from, $count);
+    my @ids = sort keys %{$list};
+    my $last_id = $ids[$#ids];
+    foreach my $id ( @ids ) {
+      my ($doc_id, $doc_url, $channel_id, $title, $description,
+          $tag, $user_id, $nickname, $pub_date,
+          $available_code, $available_reason,
+          $doc_rank, $image_count, $vod_count)
+      = map { $list->{$id}->{$_} }
+        qw(doc_id doc_url channel_id title description
+           tag user_id nickname pub_date
+           available_code available_reason
+           doc_rank image_count vod_count);
+      foreach ( qw(title description user_id nickname available_reason) ) {
+        eval qq{
+          utf8::is_utf8(\$$_) or \$$_ = Encode::decode("utf-8", \$$_);
+        };
+      }
+
+      print qq({
+  "id": $id,
+  "doc_id": "$doc_id",
+  "doc_url": ), $json->encode($doc_url), qq(,
+  "channel_id": "$channel_id",
+  "title": ), $json->encode($title), qq(,
+  "description": ), $json->encode($description), qq(,
+  "tag": ), $json->encode($tag), qq(,
+  "user_id": ), $json->encode($user_id), qq(,
+  "nickname": ), $json->encode($nickname), qq(,
+  "pub_date": ), $json->encode($pub_date), qq(,
+  "available_code": ), $json->encode($available_code), qq(,
+  "available_reason": ), $json->encode($available_reason), qq(,
+  "doc_rank": ), $json->encode($doc_rank), qq(,
+  "image_count": ), $json->encode($image_count), qq(,
+  "vod_count": ), $json->encode($vod_count), qq(,
+  "dummy": null
+});
+  
+#          tag user_id nickname pub_date
+#          available_code available_reason
+#          doc_rank image_count vod_count
+      print ",\n" unless $id == $last_id;
+    }
+
+    print qq(],\n);
+}
+
+my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
+print json_footer($BM1, $BM2, $T01, $T02);
+
+
+1;
+
+sub json_header {
+  my ($query, $callback) = @_;
+  my $header = "";
+  if ($callback) {
+    $json .= <<END;
+if (typeof $callback === "function") $callback(
+END
+  }
+  $header .= <<END;
+{ "version": "1.0",
+  "$query": {
+END
+  return $header;
+}
+
+sub json_status {
+  my ($format, $min, $max) = @_;
+  my $full_url = url(-full=>1);
+  return <<END
+"status": {
+  "min_id": $min,
+  "min_url": "$full_url/$format/list?from=$min",
+  "max_id": $max,
+  "max_url": "$full_url/$format/list?from=$max"
+},
+END
+}
+
+sub json_footer {
+  my ($t1, $t2, $t01, $t02) = @_;
+  my $elapsed   = tv_interval($t01, $t02);
+  my $benchmark = timestr(timediff($t2, $t1));
+  my $mod_perl  = $ENV{MOD_PERL} || "";
+  my $footer = <<END;
+  },
+  "debug_info": {
+    "elapsed": "$elapsed secs",
+    "benchmark": "$benchmark",
+    "mod_perl": "$mod_perl"
+  }
+}
+END
+  $footer .= qq#);\n# if $callback;
+  return $footer;
+}
+
+sub realtime_dbh {
+  use DBI;
+  my $database = q(dbi:mysql:database=realtime;host=10.30.143.73);
+  my $db_user = q(cdwuser);
+  my $db_pass = q(cdwuserdb);
+
+  my $dbh = DBI->connect($database, $db_user, $db_pass);
+  return $dbh;
+}
+
+sub list {
+  my $seq = shift;
+  my $count = shift;
+
+  my $dbh = realtime_dbh();
+  my $sql = q(select * from realtime_article where id between ? and ?);
+
+  my $list = $dbh->selectall_hashref($sql, 'id', {}, $seq, $seq+$count-1);
+  return $list;
+
+  my @list;
+
+  return @list;
+}
+
+sub status {
+  my $dbh = realtime_dbh();
+  my ($max_id) = $dbh->selectrow_array( q{select max(id) from realtime_article});
+  my ($min_id) = $dbh->selectrow_array( q{select min(id) from realtime_article});
+
+  return ($min_id, $max_id);
+}
+
