@@ -19,7 +19,7 @@ CGI->compile();
 #binmode STDOUT, ":encoding(UTF-8)";
 
 our $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
-our $json    = new JSON; $json->allow_nonref->allow_blessed;
+our $json    = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
@@ -37,23 +37,21 @@ print jsonp_header($callback);
 my %dispatch = (
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
   realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
+  index     => \&handler_index,
+  district  => \&election_district,
 );
 
 my $output = {};
 if ( defined $dispatch{$query} ) {
   my %result = &{$dispatch{$query}};
   map { $output->{$_} = $result{$_}; } keys %result;
-}
-elsif ( $query eq "index" ) {
-  my @available_queries = sort keys %dispatch;
-  $output->{index} = { map { $_ => "$full_url/$_" } @available_queries };
 } else {
   $output->{hello} = "world!";
 }
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
-print $json->utf8(1)->pretty(1)->encode($output);
+print $json->encode($output);
 print jsonp_footer($callback);
 
 1;
@@ -95,6 +93,96 @@ sub next_urls {
         http://search-twitter-app2:3080
         http://search-twitter-app3:3080
     );
+}
+
+sub handler_index {
+  return ( index => { map { $_ => "$full_url/$_" } sort keys %dispatch } );
+}
+
+sub mysql_dbh {
+  use DBI;
+  my ($database, $db_user, $db_pass) = @_;
+  my $dbh = DBI->connect($database, $db_user, $db_pass);
+  return $dbh;
+}
+
+###############################################################################
+sub election_district {
+  my $limit     = param('limit') || 30;
+
+  my @mysql_dsn = election_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = q{
+
+SELECT @rownum := @rownum + 1 AS rownum,
+       sido_cd, sido_name, sido_short_name, cp_election_district_id,
+       election_district_short_name,
+       cp_person_count,
+       tw_mentioned_count,
+       (tw_mentioned_count / 8000 * 100) AS tw_mentioned_share
+FROM
+( SELECT sido_cd, sido_name, sido_short_name, cp_election_district_id,
+         election_district_short_name,
+         COUNT(cp_person_id) AS cp_person_count,
+         ( FLOOR(RAND()*10) +
+           FLOOR(RAND()*1.2)*FLOOR(RAND()*10) +
+           FLOOR(RAND()*1.05)*FLOOR(RAND()*100) +
+           FLOOR(RAND()*1.05)*FLOOR(RAND()*1000) ) AS tw_mentioned_count
+  FROM twapp2t.candidate
+  GROUP BY cp_election_district_id
+  ORDER BY tw_mentioned_count DESC
+) d,
+( SELECT @rownum := 0 ) r
+LIMIT ?
+  };
+  my $district = $dbh->selectall_arrayref($sql, { Slice => {} }, $limit);
+  foreach my $row ( @{$district} ) {
+    foreach ( qw(sido_short_name sido_name election_district_short_name) ) {
+      eval {
+        if ( defined $row->{$_} ) {
+          utf8::is_utf8($row->{$_})
+            or $row->{$_}
+                 = Encode::decode("utf8", $row->{$_});
+        };
+      };
+      warn "district data $row->{$_} has invalid character in field $_" if $@;
+    }
+  }
+  my $help = {
+    nownum  => "순위",
+    sido_cd => "특별/광역/도 코드",
+    sido_name => "특별/광역/도 이름",
+    sido_short_name => "특별/광역/도 이름의 약칭",
+    cp_election_district_id => "CP_선거구ID",
+    election_district_name => "선거구 이름",
+    election_district_short_name => "선거구 이름의 약칭",
+    tw_mentioned_count => "트위터에서 이름이 언급된 횟수",
+    tw_mentioned_share => "트위터에서 이름이 언급된 점유율(%)",
+    cp_person_count => "선거구의 후보자 수"
+  };
+  return (
+    district => $district,
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
+}
+
+sub election_mysql {
+  my @slaves = (
+    q(10.10.208.21),
+    q(10.10.208.31),
+    q(10.10.208.77),
+  );
+  my $host = $slaves[ int(rand(3)) ];
+  my $schema  = "twapp2";
+  my $db_user = "twapp1";
+  my $db_pass = "app!@#";
+  unless ( $q->server_port eq "80" ) {
+     $schema  = "twapp2t";
+     $db_user = "twapp1t";
+     $db_pass = "app123";
+  }
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
 }
 
 ###############################################################################
@@ -144,7 +232,7 @@ sub realtime_ddm_dynamic_list {
           #print "BEFORE decode $_ is_utf8? =$is_utf8\n";
           utf8::is_utf8($row->{$_})
             or $row->{$_}
-                 = Encode::decode("utf-8", $row->{$_});
+                 = Encode::decode("utf8", $row->{$_});
           #my $is_utf8 = utf8::is_utf8($row->{$_});
           #print "AFTER  decode $_ is_utf8? =$is_utf8\n";
         };
