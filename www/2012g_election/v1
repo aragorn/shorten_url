@@ -41,6 +41,7 @@ my %dispatch = (
   district_list  => \&election_district_list,
   district       => \&election_district,
   wave_rank_mention_count     => \&wave_rank_mention_count,
+  wave_rank_election          => \&wave_rank_election,
 );
 
 my $output = {};
@@ -354,7 +355,52 @@ LIMIT ?
     }
   }
   return (
-    wave_list => $wave_list,
+    list => $wave_list,
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
+}
+
+sub wave_rank_election {
+  my $limit     = param('limit') || 30;
+
+  my @mysql_dsn = wave_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = q{
+SELECT @rownum := @rownum + 1 AS rownum,
+	word, cat, class, clue, urlid, createat, coword, docid
+FROM
+wave_rank_election w,
+( SELECT @rownum := 0 ) r
+ORDER BY createat DESC
+LIMIT ?
+  };
+  my $help = {
+    nownum  => "순서",
+    word => "언급된 정치인 이름",
+    cat => "카테고리(정치인: 1)",
+    class => "동의어일때 사용, 동일한 이름 정치인이 존재하면 2이상",
+    clue => "",
+    urlid => "",
+    createat => "",
+    coword => "",
+    docid => "",
+  };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $limit);
+  foreach my $row ( @{$list} ) {
+    foreach ( qw(word cat class clue urlid createat coword docid) ) {
+      eval {
+        if ( defined $row->{$_} ) {
+          utf8::is_utf8($row->{$_})
+            or $row->{$_}
+                 = Encode::decode("utf8", $row->{$_});
+        };
+      };
+      warn "wave data $row->{$_} has invalid character in field $_" if $@;
+    }
+  }
+  return (
+    list => $list,
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
