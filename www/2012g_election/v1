@@ -40,6 +40,7 @@ my %dispatch = (
   index     => \&handler_index,
   district_list  => \&election_district_list,
   district       => \&election_district,
+  wave_rank_mention_count     => \&wave_rank_mention_count,
 );
 
 my $output = {};
@@ -312,4 +313,68 @@ sub realtime_ddm_dynamic_list {
     format_version => "json_breeze_ds_0.1",
     data           => $list,
   );
+}
+
+###############################################################################
+sub wave_rank_mention_count {
+  my $limit     = param('limit') || 30;
+
+  my @mysql_dsn = wave_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = q{
+SELECT @rownum := @rownum + 1 AS rownum,
+	word, cat, class, screen_name, id, pub_date_begin, mention_count
+FROM
+wave_rank_mention_count w,
+( SELECT @rownum := 0 ) r
+ORDER BY pub_date_begin DESC, mention_count DESC
+LIMIT ?
+  };
+  my $help = {
+    nownum  => "순서",
+    word => "언급된 정치인 이름",
+    cat => "카테고리(정치인: 1)",
+    class => "동의어일때 사용, 동일한 이름 정치인이 존재하면 2이상",
+    screen_name => "트위터 사용자 ID",
+    id => "트윗 ID",
+    pub_date_begin => "20분 단위 발행 시작일",
+    mention_count => "20분내 언급된 횟수",
+  };
+  my $wave_list = $dbh->selectall_arrayref($sql, { Slice => {} }, $limit);
+  foreach my $row ( @{$wave_list} ) {
+    foreach ( qw(word cat class screen_name id pub_date_begin mention_count) ) {
+      eval {
+        if ( defined $row->{$_} ) {
+          utf8::is_utf8($row->{$_})
+            or $row->{$_}
+                 = Encode::decode("utf8", $row->{$_});
+        };
+      };
+      warn "wave data $row->{$_} has invalid character in field $_" if $@;
+    }
+  }
+  return (
+    wave_list => $wave_list,
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
+}
+
+sub wave_mysql {
+  my @slaves = (
+    q(10.10.208.21),
+    q(10.10.208.31),
+    q(10.10.208.77),
+  );
+  my $host = $slaves[ int(rand(3)) ];
+  my $schema  = "twapp1";
+  my $db_user = "twapp1";
+  my $db_pass = "app!@#";
+  unless ( $q->server_port eq "80"
+       and defined $ENV{GATEWAY_INTERFACE} ) {
+     $schema  = "twapp1t";
+     $db_user = "twapp1t";
+     $db_pass = "app123";
+  }
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
 }
