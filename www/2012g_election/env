@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use CGI qw(:standard escape escapeHTML -oldstyle_urls);
+
+my $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+my $server_name = join(":", $q->server_name, $q->virtual_port);
+print $q->header(-charset=>'utf-8', -type=>'text/html');
+
+print $q->start_html(-lang=>'ko_KR', -encoding=>'utf-8', -title=>$server_name);
+
+print h2('%ENV');
+print "<table>";
+foreach ( sort keys %ENV )
+{
+  print "<tr><th>$_</th><td>$ENV{$_}</td></tr>\n";
+}
+print "<tr><th>POSTDATA</th><td>", param('POSTDATA'), "</td></tr>\n";
+print "</table>\n\n";
+
+
+print h2('form');
+print "<table>";
+foreach ( sort keys %{$q->Vars} )
+{
+  print "<tr><th>$_</th><td>", $q->param($_), "</td></tr>\n";
+}
+print "</table>\n\n";
+
+
+print h2("CGI::http('http_host')=".$ENV{HTTP_HOST});
+print "<table>";
+my @http_keys = http();
+foreach ( sort @http_keys )
+{
+  print "<tr><th>$_</th><td>".CGI::http($_)."</td></tr>\n";
+}
+print "</table>\n\n";
+
+print h2("CGI environment variables");
+print "<table>";
+my @vars = qw(raw_cookie user_agent path_info path_translated remote_host 
+  script_name referer auth_type server_name virtual_host server_port virtual_port
+  server_software remote_user user_name request_method content_type );
+foreach ( @vars )
+{
+  print "<tr><th>CGI::$_()</th><td>".eval("CGI::$_()")."</td></tr>\n";
+}
+print "</table>\n\n";
+
+
+#print h2('Daum::ShortenURL');
+#use Daum::ShortenURL;
+#
+#my $shorten = new Daum::ShortenURL;
+#my %CONFIG = %Daum::ShortenURL::CONFIG;
+#
+#print "<table>";
+#foreach ( sort keys %CONFIG )
+#{
+#  print "<tr><th>$_</th><td>$CONFIG{$_}</td></tr>\n";
+#}
+#print "</table>";
+
+print start_form(-method=>'post', -action=>'env', -enctype=>'www-form-urlencoded'),
+  textfield(-name=>'q', -size=>40),
+  textarea(-name=>'text', -rows=>10, -cols=>80),
+  submit(-name=>'submit', -value=>'OK'),
+  end_form;
+
+print p("END"), end_html;
