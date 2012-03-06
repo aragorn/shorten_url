@@ -54,6 +54,21 @@ if ( defined $dispatch{$query} ) {
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
+
+# Automating the utf8 encoding process.
+foreach my $row ( @{$output->{results}} ) {
+  while ((my $key, my $value) = each(%$row)){
+    eval {
+      if ( defined $row->{$key} ) {
+        utf8::is_utf8($row->{$key})
+          or $row->{$key}
+               = Encode::decode("utf8", $row->{$key});
+      };
+    };
+    warn "Results $row->{$key} has invalid character in field $key" if $@;
+  }
+}
+
 print $json->encode($output);
 print jsonp_footer($callback);
 
@@ -152,21 +167,9 @@ LIMIT ?
     latitude  => "WGS-84 위도",
     longitude => "WGS-84 경도",
   };
-  my $district_list = $dbh->selectall_arrayref($sql, { Slice => {} }, $limit);
-  foreach my $row ( @{$district_list} ) {
-    foreach ( qw(sido_short_name sido_name election_district_short_name) ) {
-      eval {
-        if ( defined $row->{$_} ) {
-          utf8::is_utf8($row->{$_})
-            or $row->{$_}
-                 = Encode::decode("utf8", $row->{$_});
-        };
-      };
-      warn "district data $row->{$_} has invalid character in field $_" if $@;
-    }
-  }
+  
   return (
-    district_list => $district_list,
+    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $limit),
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
@@ -213,22 +216,9 @@ FROM
     #latitude  => "WGS-84 위도",
     #longitude => "WGS-84 경도",
   };
-  my $district = $dbh->selectall_arrayref($sql, { Slice => {} }, $district_id);
-  foreach my $row ( @{$district} ) {
-    foreach ( qw(candidate_name party_name party_short_name) ) {
-      eval {
-        if ( defined $row->{$_} ) {
-          utf8::is_utf8($row->{$_})
-            or $row->{$_}
-                 = Encode::decode("utf8", $row->{$_});
-        };
-      };
-      warn "district data $row->{$_} has invalid character in field $_" if $@;
-    }
-  }
 
   return (
-    district => $district,
+    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $district_id),
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
@@ -292,27 +282,13 @@ sub realtime_ddm_dynamic_list {
 
   my $max_id = $from;
   foreach my $row ( @{$list} ) {
-    # decode octet-stream to utf-8 string
-    foreach ( qw(title description user_id nickname available_reason) ) {
-      eval {
-        if ( defined $row->{$_} ) {
-          #my $is_utf8 = utf8::is_utf8($row->{$_});
-          #print "BEFORE decode $_ is_utf8? =$is_utf8\n";
-          utf8::is_utf8($row->{$_})
-            or $row->{$_}
-                 = Encode::decode("utf8", $row->{$_});
-          #my $is_utf8 = utf8::is_utf8($row->{$_});
-          #print "AFTER  decode $_ is_utf8? =$is_utf8\n";
-        };
-      };
-    }
     $max_id = $row->{id} if $max_id < $row->{id};
   }
   my $next = $max_id + 1;
   return (
     next_urls      => [ next_urls($q->url(-path_info=>1,-absolute=>1) . "?from=$next&count=$count") ],
     format_version => "json_breeze_ds_0.1",
-    data           => $list,
+    results           => $list,
   );
 }
 
@@ -341,21 +317,9 @@ LIMIT ?
     pub_date_begin => "20분 단위 발행 시작일",
     mention_count => "20분내 언급된 횟수",
   };
-  my $wave_list = $dbh->selectall_arrayref($sql, { Slice => {} }, $limit);
-  foreach my $row ( @{$wave_list} ) {
-    foreach ( qw(word cat class screen_name id pub_date_begin mention_count) ) {
-      eval {
-        if ( defined $row->{$_} ) {
-          utf8::is_utf8($row->{$_})
-            or $row->{$_}
-                 = Encode::decode("utf8", $row->{$_});
-        };
-      };
-      warn "wave data $row->{$_} has invalid character in field $_" if $@;
-    }
-  }
+
   return (
-    list => $wave_list,
+    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $limit),
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
@@ -368,9 +332,9 @@ sub wave_rank_election {
   my $dbh = mysql_dbh(@mysql_dsn);
   my $sql = q{
 SELECT @rownum := @rownum + 1 AS rownum,
-	word, cat, class, clue, urlid, createat, coword, docid
+	word, cat, class, clue, status, createat, coword, docid
 FROM
-wave_rank_election w,
+wave_rank_election_v1 w,
 ( SELECT @rownum := 0 ) r
 ORDER BY createat DESC
 LIMIT ?
@@ -386,21 +350,9 @@ LIMIT ?
     coword => "",
     docid => "",
   };
-  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $limit);
-  foreach my $row ( @{$list} ) {
-    foreach ( qw(word cat class clue urlid createat coword docid) ) {
-      eval {
-        if ( defined $row->{$_} ) {
-          utf8::is_utf8($row->{$_})
-            or $row->{$_}
-                 = Encode::decode("utf8", $row->{$_});
-        };
-      };
-      warn "wave data $row->{$_} has invalid character in field $_" if $@;
-    }
-  }
+
   return (
-    list => $list,
+    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $limit),
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
