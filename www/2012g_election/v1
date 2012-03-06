@@ -37,9 +37,10 @@ print jsonp_header($callback);
 my %dispatch = (
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
   realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
-  index     => \&handler_index,
-  district_list  => \&election_district_list,
-  district       => \&election_district,
+  index                       => \&handler_index,
+  district_list               => \&election_district_list,
+  district                    => \&election_district,
+  candidate                   => \&election_candidate,
   wave_rank_mention_count     => \&wave_rank_mention_count,
   wave_rank_election          => \&wave_rank_election,
 );
@@ -48,6 +49,7 @@ my $output = {};
 if ( defined $dispatch{$query} ) {
   my %result = &{$dispatch{$query}};
   map { $output->{$_} = $result{$_}; } keys %result;
+
 } else {
   $output->{hello} = "world!";
 }
@@ -241,6 +243,53 @@ sub election_mysql {
      $db_pass = "app123";
   }
   return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+}
+
+sub election_candidate {
+  my (@where, @where_param);
+  foreach ( qw( homo_id cp_person_id cp_party_id_1 cp_party_id_2
+                cp_election_district_id twitter_id ) ) {
+    my @this_param = param($_);
+    foreach my $value ( @this_param ) {
+      push @where, "$_ = ?";
+      push @where_param, $value;
+    }
+  }
+  push @where, "1" if scalar @where < 1;
+  my $sql_where = join(" OR ", @where);
+
+  my @mysql_dsn = election_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = q{
+SELECT @rownum := @rownum + 1 AS rownum,
+       d.*
+FROM
+( SELECT *
+  FROM candidate
+  WHERE } . $sql_where . q{
+) d,
+( SELECT @rownum := 0 ) r
+  };
+  my $help = {
+    nownum  => "순위",
+    homo_id => "통합검색 인물ID",
+    cp_person_id => "CP 인물ID",
+    candidate_name => "후보자 이름",
+    election_symbol => "기호",
+    cp_party_id_1 => "CP 정당ID",
+    cp_party_id_2 => "CP 정당ID",
+    party_name => "정당이름",
+    party_short_name => "정당이름 약칭",
+    twitter_id => "트위터ID",
+    #latitude  => "WGS-84 위도",
+    #longitude => "WGS-84 경도",
+  };
+
+  return (
+    results => $dbh->selectall_arrayref($sql, { Slice => {} }, @where_param),
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
 }
 
 ###############################################################################
