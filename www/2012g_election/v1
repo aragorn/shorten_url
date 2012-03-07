@@ -49,25 +49,11 @@ my $output = {};
 if ( defined $dispatch{$query} ) {
   my %result = &{$dispatch{$query}};
   map { $output->{$_} = $result{$_}; } keys %result;
-  # Automating the utf8 encoding process.
-  foreach my $row ( @{$output->{results}} ) {
-    while ((my $key, my $value) = each(%$row)){
-      eval {
-        if ( defined $row->{$key} and not ref $row->{$key} ) {
-          utf8::is_utf8($row->{$key})
-            or $row->{$key}
-                 = Encode::decode("utf8", $row->{$key});
-        };
-      };
-      warn "Results $row->{$key} has invalid character in field $key" if $@;
-    }
-  }
-
-  # Sorting "help" hashes by key.
-  #sort %{$output->{help}} keys;
 } else {
   $output->{hello} = "world!";
 }
+
+decode_utf8_in_complex_data($output);
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
@@ -114,6 +100,41 @@ sub next_urls {
         http://search-twitter-app2:3080
         http://search-twitter-app3:3080
     );
+}
+
+sub decode_utf8_in_complex_data {
+  my ($var) = @_;
+  if ( ref $var eq "HASH" ) {
+    foreach my $key ( keys %{$var} ) {
+      next unless defined $var->{$key};
+      if ( ref $var->{$key} ) {
+        decode_utf8_in_complex_data($var->{$key});
+      } else {
+        eval {
+          utf8::is_utf8($var->{$key})
+            or $var->{$key}
+            = Encode::decode("utf8", $var->{$key});
+        };
+        warn "\$var->{$key} has invalid character." if $@;
+      }
+    }
+  } elsif ( ref $var eq "ARRAY" ) {
+    for ( my $i = 0; $i <= $#{$var}; $i++ ) {
+      next unless defined ${$var}[$i];
+      if ( ref ${$var}[$i] ) {
+        decode_utf8_in_complex_data(${$var}[$i]);
+      } else {
+        eval {
+          utf8::is_utf8(${$var}[$i])
+            or ${$var}[$i] = Encode::decode("utf8", ${$var}[$i]);
+        };
+        warn "\$var[$i] has invalid character." if $@;
+      }
+    }
+  } else {
+    ; # do nothing
+  }
+  return $var;
 }
 
 sub handler_index {
