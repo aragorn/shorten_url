@@ -351,7 +351,10 @@ LIMIT 6
   return (
     results => $list,
     help => $help,
-    debug => { mysql => $mysql_dsn[0], },
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
   );
 }
 
@@ -360,7 +363,6 @@ sub sns_map {
   my $t = localtime;
   
   my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
-  my $cp_party_id = param('cp_party_id') || 1;
 
   my @mysql_dsn = app1_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -395,14 +397,12 @@ WHERE candidate_name = ?
     };
     my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, Encode::decode("utf8", $row->{word}));
 
-    #use Data::Dumper;
-    #print Dumper($candidate);
-
     $row->{tw_mentioned_total} = @{$totalcount}[0];
     $row->{tw_mentioned_share} = sprintf("%.3f", $row->{tw_mentioned_count} / @{$totalcount}[0]) * 100;
     $row->{homo_id} = $candidate->{homo_id};
     $row->{cp_person_id} = $candidate->{cp_person_id};
-    $row->{cp_party_id} = $candidate->{cp_party_id_1};
+    $row->{cp_party_id_1} = $candidate->{cp_party_id_1};
+    $row->{cp_party_id_2} = $candidate->{cp_party_id_2};
   }
 
   my $help = {
@@ -412,9 +412,10 @@ WHERE candidate_name = ?
     tw_mentioned_count => "후보자 언급 횟수",
     tw_mentioned_total => "총선 후보 전체 트윗 수",
     tw_mentioned_share => "점유율",
-    home_id => "검색 인물 정보 ID",
-    cp_person_id => "후보 정보 코드",
-    cp_party_id => "정당 코드",
+    homo_id => "검색 인물 정보ID",
+    cp_person_id => "CP 인물ID",
+    cp_party_id_1 => "CP 정당ID",
+    cp_party_id_2 => "CP 정당ID",
   };
 
   return (
