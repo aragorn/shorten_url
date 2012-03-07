@@ -27,7 +27,7 @@ my (undef, $query) = split(/\//o, $q->path_info() || "/index", 2);
 my $from     = param('from')  || 0;
 my $count    = param('count') || 100;
 my $callback = param('callback');
-my $content_type = "application/json";
+my $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
    $content_type = "application/javascript" if $callback; # JSONP
 my $full_url = $q->url(-full=>1);
 
@@ -199,8 +199,7 @@ sub realtime_dbh {
 sub district_list {
   my $limit     = param('limit') || 15;
 
-  my @mysql_dsn = app2_mysql();
-  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app2_dbh = mysql_dbh( app2_mysql() );
 # 격전지별 전체 후보 추출
   my $sql = q{
 SELECT 
@@ -209,9 +208,9 @@ SELECT
 FROM candidate
 GROUP BY cp_election_district_id
   };
-  my $list = $dbh->selectall_arrayref($sql, { Slice => {} });
+  my $list = $app2_dbh->selectall_arrayref($sql, { Slice => {} });
 
-  $dbh = mysql_dbh(app1_mysql());
+  my $app1_dbh = mysql_dbh(app1_mysql());
 # 1시간 단위 전체 후보자 언급 횟수 추출.
 # TODO: 테스트에서는 1일 단위로 처리, 변경 필요.
   $sql = q{
@@ -220,7 +219,7 @@ FROM wave_rank_mention_count
 WHERE pub_date_begin > date_sub(now(), interval 1 day)
 GROUP BY word
   };
-  my $counts_ref = $dbh->selectall_arrayref($sql, { Slice => {} });
+  my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} });
 
   # Create an array of counts.
   my %counts = ();
@@ -269,7 +268,10 @@ GROUP BY word
   return (
     results => \@sorted,
     help => $help,
-    debug => { mysql => $mysql_dsn[0], },
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
   );
 }
 
@@ -467,7 +469,7 @@ sub election_candidate {
                 cp_election_district_id twitter_id ) ) {
     my @this_param = param($_);
     foreach my $value ( @this_param ) {
-      push @where, "$_ = ?";
+      push @where, "candidate.$_ = ?";
       push @where_param, $value;
     }
   }
@@ -480,9 +482,10 @@ sub election_candidate {
 SELECT @rownum := @rownum + 1 AS rownum,
        d.*
 FROM
-( SELECT *
-  FROM candidate
-  WHERE } . $sql_where . q{
+( SELECT candidate.*, map.x AS wcongnamul_x, map.y AS wcongnamul_y
+  FROM candidate, district_map_coordinates map
+  WHERE candidate.cp_election_district_id = map.cp_election_district_id
+        AND ( } . $sql_where . q{ )
 ) d,
 ( SELECT @rownum := 0 ) r
   };
