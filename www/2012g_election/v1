@@ -359,6 +359,8 @@ LIMIT 6
 }
 
 sub sns_map {
+  my $limit     = param('limit') || 100;
+
   use Time::localtime;
   my $t = localtime;
   
@@ -381,9 +383,9 @@ FROM wave_rank_mention_count
 WHERE date(pub_date_begin) = ?
 GROUP BY date(pub_date_begin), word 
 ORDER BY tw_mentioned_count DESC 
-LIMIT 100
+LIMIT ?
   };
-  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $date);
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $date, $limit);
 
   $dbh = mysql_dbh(app2_mysql());
   foreach my $row ( @{$list} ) {
