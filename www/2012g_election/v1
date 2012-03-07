@@ -203,9 +203,11 @@ sub district_list {
 # 격전지별 전체 후보 추출
   my $sql = q{
 SELECT 
-    sido_cd, sido_name, sido_short_name, cp_election_district_id, 
-    election_district_short_name, group_concat(candidate_name) as candidate_name
-FROM candidate
+    c.sido_cd, c.sido_name, c.sido_short_name, c.cp_election_district_id, 
+    c.election_district_short_name, group_concat(c.candidate_name) as candidate_name,
+    d.x as wcongnamul_x, d.y as wcongnamul_y
+FROM candidate c, district_map_coordinates d
+WHERE c.cp_election_district_id = d.cp_election_district_id
 GROUP BY cp_election_district_id
   };
   my $list = $app2_dbh->selectall_arrayref($sql, { Slice => {} });
@@ -237,9 +239,6 @@ GROUP BY word
     }
 
     $row->{tw_mentioned_share} = sprintf("%.3f", $row->{tw_mentioned_count} / $total) * 100;
-
-    $row->{latitude} = "37.4997677193116";
-    $row->{longitude} = "127.0294189453125";
   }
 
   # Sorting.
@@ -261,8 +260,8 @@ GROUP BY word
     election_district_short_name => "선거구 이름의 약칭",
     tw_mentioned_count => "트위터에서 이름이 언급된 횟수",
     tw_mentioned_share => "트위터에서 이름이 언급된 점유율(%)",
-    latitude  => "위도",
-    longitude => "경도",
+    wcongnamul_x => "지도 좌표",
+    wcongnamul_y => "지도 좌표",
   };
 
   return (
