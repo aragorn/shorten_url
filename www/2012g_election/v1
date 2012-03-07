@@ -35,41 +35,42 @@ print $q->header(-charset=>'utf-8', -type=>$content_type);
 print jsonp_header($callback);
 
 my %dispatch = (
+  index                       => \&handler_index,
+  district_list               => \&district_list,
+  district                    => \&district,
+  sns_map                     => \&sns_map,
+  sns_map_detail              => \&sns_map_detail,
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
   realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
-  index                       => \&handler_index,
-  district_list               => \&election_district_list,
-  district                    => \&election_district,
   candidate                   => \&election_candidate,
-  wave_rank_mention_count     => \&wave_rank_mention_count,
-  wave_rank_election          => \&wave_rank_election,
 );
 
 my $output = {};
 if ( defined $dispatch{$query} ) {
   my %result = &{$dispatch{$query}};
   map { $output->{$_} = $result{$_}; } keys %result;
+  # Automating the utf8 encoding process.
+  foreach my $row ( @{$output->{results}} ) {
+    while ((my $key, my $value) = each(%$row)){
+      eval {
+        if ( defined $row->{$key} and not ref $row->{$key} ) {
+          utf8::is_utf8($row->{$key})
+            or $row->{$key}
+                 = Encode::decode("utf8", $row->{$key});
+        };
+      };
+      warn "Results $row->{$key} has invalid character in field $key" if $@;
+    }
+  }
 
+  # Sorting "help" hashes by key.
+  #sort %{$output->{help}} keys;
 } else {
   $output->{hello} = "world!";
 }
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
-
-# Automating the utf8 encoding process.
-foreach my $row ( @{$output->{results}} ) {
-  while ((my $key, my $value) = each(%$row)){
-    eval {
-      if ( defined $row->{$key} ) {
-        utf8::is_utf8($row->{$key})
-          or $row->{$key}
-               = Encode::decode("utf8", $row->{$key});
-      };
-    };
-    warn "Results $row->{$key} has invalid character in field $key" if $@;
-  }
-}
 
 print $json->encode($output);
 print jsonp_footer($callback);
@@ -126,36 +127,116 @@ sub mysql_dbh {
 }
 
 ###############################################################################
-sub election_district_list {
-  my $limit     = param('limit') || 30;
+sub app1_mysql {
+  my @slaves = (
+    q(10.10.208.21),
+    q(10.10.208.31),
+    q(10.10.208.77),
+  );
+  my $host = $slaves[ int(rand(3)) ];
+  my $schema  = "twapp1";
+  my $db_user = "twapp1";
+  my $db_pass = "app!@#";
+  unless ( $q->server_port eq "80"
+       and defined $ENV{GATEWAY_INTERFACE} ) {
+     $schema  = "twapp1t";
+     $db_user = "twapp1t";
+     $db_pass = "app123";
+  }
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+}
 
-  my @mysql_dsn = election_mysql();
+sub app2_mysql {
+  my @slaves = (
+    q(10.10.208.21),
+    q(10.10.208.31),
+    q(10.10.208.77),
+  );
+  my $host = $slaves[ int(rand(3)) ];
+  my $schema  = "twapp2";
+  my $db_user = "twapp1";
+  my $db_pass = "app!@#";
+  unless ( $q->server_port eq "80"
+       and defined $ENV{GATEWAY_INTERFACE} ) {
+     $schema  = "twapp2t";
+     $db_user = "twapp1t";
+     $db_pass = "app123";
+  }
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+}
+
+sub realtime_dbh {
+  use DBI;
+  my $database = q(dbi:mysql:database=realtime;host=10.30.143.73);
+  my $db_user = q(cdwuser);
+  my $db_pass = q(cdwuserdb);
+
+  my $dbh = DBI->connect($database, $db_user, $db_pass);
+  return $dbh;
+}
+###############################################################################
+
+sub district_list {
+  my $limit     = param('limit') || 15;
+
+  my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
+#  my $sql = q{
+#SELECT @rownum := @rownum + 1 AS rownum,
+#       sido_cd, sido_name, sido_short_name,
+#       cp_election_district_id, election_district_short_name,
+#       "37.4997677193116"  AS latitude,
+#       "127.0294189453125" AS longitude,
+#       cp_person_count,
+#       tw_mentioned_count,
+#       (tw_mentioned_count / 8000 * 100) AS tw_mentioned_share
+#FROM
+#( SELECT sido_cd, sido_name, sido_short_name,
+#         cp_election_district_id, election_district_short_name,
+#         COUNT(cp_person_id) AS cp_person_count,
+#         ( FLOOR(RAND()*10) +
+#           FLOOR(RAND()*1.2)*FLOOR(RAND()*10) +
+#           FLOOR(RAND()*1.05)*FLOOR(RAND()*100) +
+#           FLOOR(RAND()*1.05)*FLOOR(RAND()*1000) ) AS tw_mentioned_count
+#  FROM candidate
+#  GROUP BY cp_election_district_id
+#  ORDER BY tw_mentioned_count DESC
+#) d,
+#( SELECT @rownum := 0 ) r
+#LIMIT ?
+#  };
+
   my $sql = q{
-SELECT @rownum := @rownum + 1 AS rownum,
-       sido_cd, sido_name, sido_short_name,
+SELECT sido_cd, sido_name, sido_short_name,
        cp_election_district_id, election_district_short_name,
-       "37.4997677193116"  AS latitude,
-       "127.0294189453125" AS longitude,
-       cp_person_count,
-       tw_mentioned_count,
-       (tw_mentioned_count / 8000 * 100) AS tw_mentioned_share
-FROM
-( SELECT sido_cd, sido_name, sido_short_name,
-         cp_election_district_id, election_district_short_name,
-         COUNT(cp_person_id) AS cp_person_count,
-         ( FLOOR(RAND()*10) +
-           FLOOR(RAND()*1.2)*FLOOR(RAND()*10) +
-           FLOOR(RAND()*1.05)*FLOOR(RAND()*100) +
-           FLOOR(RAND()*1.05)*FLOOR(RAND()*1000) ) AS tw_mentioned_count
-  FROM candidate
-  GROUP BY cp_election_district_id
-  ORDER BY tw_mentioned_count DESC
-) d,
-( SELECT @rownum := 0 ) r
-LIMIT ?
+       group_concat(candidate_name) as candidate_name
+FROM candidate
+GROUP BY cp_election_district_id
   };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} });
+
+  $dbh = mysql_dbh(app1_mysql());
+  $sql = q{
+SELECT word, sum(mention_count) as cnt FROM wave_rank_mention_count 
+where pub_date_begin > date_sub(now(), interval 1 day) group by word
+  };
+  my $counts_ref = $dbh->selectall_arrayref($sql, { Slice => {} });
+  my %counts = ();
+  foreach my $row ( @{$counts_ref} ) {
+    my $word = Encode::decode("utf8", $row->{word});
+    $counts{$word} = $row->{cnt};
+  }
+
+  foreach my $row ( @{$list} ) {
+    #$row->{count} = $counts{'강기갑'};
+    $row->{count} = $counts{강기갑};
+  }
+
+  # Sorting
+
   my $help = {
+    "API:name" => "격전지 왼쪽 리스트",
+    "API:desc" => "이 시각 SNS 격전지에서 사용, 기본 15개",
     nownum  => "순위",
     sido_cd => "특별/광역/도 코드",
     sido_name => "특별/광역/도 이름",
@@ -169,18 +250,18 @@ LIMIT ?
     latitude  => "WGS-84 위도",
     longitude => "WGS-84 경도",
   };
-  
+
   return (
-    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $limit),
+    results => $list,
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
 }
 
-sub election_district {
+sub district {
   my $district_id = param('district_id');
 
-  my @mysql_dsn = election_mysql();
+  my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
   my $sql = q{
 SELECT @rownum := @rownum + 1 AS rownum,
@@ -202,7 +283,16 @@ FROM
 ) d,
 ( SELECT @rownum := 0 ) r
   };
+  
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $district_id);
+  foreach my $row ( @{$list} ) {
+    my @histories = ("20.2","24.1","20.1","11.4","17.8","16");
+    $row->{shared_history} = \@histories;
+  }
+
   my $help = {
+    "API:name" => "격전지 상세",
+    "API:desc" => "",
     nownum  => "순위",
     homo_id => "통합검색 인물ID",
     cp_person_id => "CP 인물ID",
@@ -215,34 +305,54 @@ FROM
     twitter_id => "트위터ID",
     tw_mentioned_count => "트위터에서 이름이 언급된 횟수",
     tw_mentioned_share => "트위터에서 이름이 언급된 점유율(%)",
+    shared_history => "최근 6일간 점유율 히스토리(%)",
+    
     #latitude  => "WGS-84 위도",
     #longitude => "WGS-84 경도",
   };
 
   return (
-    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $district_id),
+    results => $list,
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
 }
 
-sub election_mysql {
-  my @slaves = (
-    q(10.10.208.21),
-    q(10.10.208.31),
-    q(10.10.208.77),
-  );
-  my $host = $slaves[ int(rand(3)) ];
-  my $schema  = "twapp2";
-  my $db_user = "twapp1";
-  my $db_pass = "app!@#";
-  unless ( $q->server_port eq "80"
-       and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp2t";
-     $db_user = "twapp1t";
-     $db_pass = "app123";
+sub sns_map_detail {
+  my $homo_id = param('homo_id');
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = q{
+select * from candidate where homo_id = ?
+  };
+ 
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $homo_id);
+
+  foreach my $row ( @{$list} ) {
+    $row->{total} = 2421551;
+    $row->{homo_id} = int(rand(10000));
+    $row->{cp_person_id} = int(rand(10000));
+    $row->{cp_party_id} = 1;
   }
-  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+
+  my $help = {
+    "API:name" => "SNS 맵",
+    "API:desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
+    word => "언급된 후보자명",
+    cnt => "언급된 횟수(하루단위)",
+    total => "전체 언급 횟수",
+    date => "조회 날짜",
+    home_id => "",
+    cp_person_id => "",
+    cp_party_id => "정당 코드",
+  };
+  
+  return (
+    results => $list,
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
 }
 
 sub election_candidate {
@@ -292,18 +402,6 @@ FROM
   );
 }
 
-###############################################################################
-
-sub realtime_dbh {
-  use DBI;
-  my $database = q(dbi:mysql:database=realtime;host=10.30.143.73);
-  my $db_user = q(cdwuser);
-  my $db_pass = q(cdwuserdb);
-
-  my $dbh = DBI->connect($database, $db_user, $db_pass);
-  return $dbh;
-}
-
 sub realtime_ddm_dynamic_status {
   my $dbh = realtime_dbh();
   my ($max_id) = $dbh->selectrow_array( q{select max(id) from realtime_article});
@@ -341,87 +439,45 @@ sub realtime_ddm_dynamic_list {
   );
 }
 
-###############################################################################
-sub wave_rank_mention_count {
-  my $limit     = param('limit') || 30;
+sub sns_map {
+  use Time::localtime;
+  my $t = localtime;
+  
+  my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
+  my $cp_party_id = param('cp_party_id') || 1;
 
-  my @mysql_dsn = wave_mysql();
+  my @mysql_dsn = app1_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
   my $sql = q{
-SELECT @rownum := @rownum + 1 AS rownum,
-	word, cat, class, screen_name, id, pub_date_begin, mention_count
-FROM
-wave_rank_mention_count w,
-( SELECT @rownum := 0 ) r
-ORDER BY pub_date_begin DESC, mention_count DESC
-LIMIT ?
+select word, sum(mention_count) as cnt, left(pub_date_begin, 10) as date
+from wave_rank_mention_count w where left(pub_date_begin, 10) = ?
+group by left(pub_date_begin, 10), word order by cnt desc limit 100
   };
-  my $help = {
-    nownum  => "순서",
-    word => "언급된 정치인 이름",
-    cat => "카테고리(정치인: 1)",
-    class => "동의어일때 사용, 동일한 이름 정치인이 존재하면 2이상",
-    screen_name => "트위터 사용자 ID",
-    id => "트윗 ID",
-    pub_date_begin => "20분 단위 발행 시작일",
-    mention_count => "20분내 언급된 횟수",
-  };
+ 
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $date);
 
-  return (
-    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $limit),
-    help => $help,
-    debug => { mysql => $mysql_dsn[0], },
-  );
-}
-
-sub wave_rank_election {
-  my $limit     = param('limit') || 30;
-
-  my @mysql_dsn = wave_mysql();
-  my $dbh = mysql_dbh(@mysql_dsn);
-  my $sql = q{
-SELECT @rownum := @rownum + 1 AS rownum,
-	word, cat, class, clue, status, createat, coword, docid
-FROM
-wave_rank_election_v1 w,
-( SELECT @rownum := 0 ) r
-ORDER BY createat DESC
-LIMIT ?
-  };
-  my $help = {
-    nownum  => "순서",
-    word => "언급된 정치인 이름",
-    cat => "카테고리(정치인: 1)",
-    class => "동의어일때 사용, 동일한 이름 정치인이 존재하면 2이상",
-    clue => "",
-    urlid => "",
-    createat => "",
-    coword => "",
-    docid => "",
-  };
-
-  return (
-    results => $dbh->selectall_arrayref($sql, { Slice => {} }, $limit),
-    help => $help,
-    debug => { mysql => $mysql_dsn[0], },
-  );
-}
-
-sub wave_mysql {
-  my @slaves = (
-    q(10.10.208.21),
-    q(10.10.208.31),
-    q(10.10.208.77),
-  );
-  my $host = $slaves[ int(rand(3)) ];
-  my $schema  = "twapp1";
-  my $db_user = "twapp1";
-  my $db_pass = "app!@#";
-  unless ( $q->server_port eq "80"
-       and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp1t";
-     $db_user = "twapp1t";
-     $db_pass = "app123";
+  foreach my $row ( @{$list} ) {
+    $row->{total} = 2421551;
+    $row->{homo_id} = int(rand(10000));
+    $row->{cp_person_id} = int(rand(10000));
+    $row->{cp_party_id} = 1;
   }
-  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+
+  my $help = {
+    "API:name" => "SNS 맵",
+    "API:desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
+    word => "언급된 후보자명",
+    cnt => "언급된 횟수(하루단위)",
+    total => "전체 언급 횟수",
+    date => "조회 날짜",
+    home_id => "",
+    cp_person_id => "",
+    cp_party_id => "정당 코드",
+  };
+
+  return (
+    results => $list,
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
 }
