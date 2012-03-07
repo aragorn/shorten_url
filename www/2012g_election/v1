@@ -389,7 +389,7 @@ sub election_candidate {
   push @where, "1" if scalar @where < 1;
   my $sql_where = join(" OR ", @where);
 
-  my @mysql_dsn = election_mysql();
+  my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
   my $sql = q{
 SELECT @rownum := @rownum + 1 AS rownum,
