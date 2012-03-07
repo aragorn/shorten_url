@@ -282,11 +282,13 @@ sub district {
 # 특정 격전지 후보 추출
   my $sql = q{
 SELECT 
-       homo_id, cp_person_id, candidate_name, election_symbol,
-       cp_party_id_1, cp_party_id_2, party_name, party_short_name,
-       twitter_id
-FROM candidate
-WHERE cp_election_district_id = ?
+       c.homo_id, c.cp_person_id, c.candidate_name, c.election_symbol,
+       c.cp_party_id_1, c.cp_party_id_2, c.party_name, c.party_short_name,
+       c.twitter_id, c.cp_election_district_id,
+       d.x as wcongnamul_x, d.y as wcongnamul_y
+FROM candidate c, district_map_coordinates d
+WHERE c.cp_election_district_id = d.cp_election_district_id
+AND c.cp_election_district_id = ?
   };
   my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $id);
   
@@ -326,9 +328,6 @@ LIMIT 6
     }
 
     $row->{tw_shared_history} = \%shared_history;
-    
-    $row->{latitude} = "37.4997677193116";
-    $row->{longitude} = "127.0294189453125";
   }
 
   my $help = {
@@ -345,8 +344,8 @@ LIMIT 6
     party_short_name => "정당이름 약칭",
     twitter_id => "트위터ID",
     tw_shared_history => "최근 6일간 점유율 히스토리(%)",
-    latitude  => "위도",
-    longitude => "경도",
+    wcongnamul_x => "지도 좌표",
+    wcongnamul_y => "지도 좌표",
   };
 
   return (
