@@ -391,7 +391,7 @@ LIMIT 100
 SELECT 
        homo_id, cp_person_id, candidate_name, election_symbol,
        cp_party_id_1, cp_party_id_2, party_name, party_short_name,
-       twitter_id
+       twitter_id, cp_election_district_id
 FROM candidate
 WHERE candidate_name = ?
     };
@@ -403,6 +403,7 @@ WHERE candidate_name = ?
     $row->{cp_person_id} = $candidate->{cp_person_id};
     $row->{cp_party_id_1} = $candidate->{cp_party_id_1};
     $row->{cp_party_id_2} = $candidate->{cp_party_id_2};
+    $row->{cp_election_district_id} = $candidate->{cp_election_district_id};
   }
 
   my $help = {
@@ -416,6 +417,7 @@ WHERE candidate_name = ?
     cp_person_id => "CP 인물ID",
     cp_party_id_1 => "CP 정당ID",
     cp_party_id_2 => "CP 정당ID",
+    cp_election_district_id => "CP_선거구ID",
   };
 
   return (
