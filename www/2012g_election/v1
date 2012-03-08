@@ -536,15 +536,21 @@ LIMIT 6
   for (my $i=0;$i<10;$i++) {
     my %tweet = (
                   "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템"
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
+                  "twitter_id" => "xxxxx",
+                  "permalink" => "twitter.com/xxxxx/28480802",
                 );
     my %mention = (
                   "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템"
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
+                  "twitter_id" => "xxxxx",
+                  "permalink" => "twitter.com/xxxxx/28480802",
                 );
     my %rt = (
                   "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템"
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
+                  "twitter_id" => "xxxxx",
+                  "permalink" => "twitter.com/xxxxx/28480802",
                 );
 
     push(@tweets, \%tweet);
