@@ -233,7 +233,8 @@ WHERE date_sub(?, interval ? second) <= pub_date_begin
   AND pub_date_begin <= ?
 GROUP BY word
   };
-  my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} }, $asof_datetime, $asof_datetime);
+  my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime);
 
   # Create an array of counts.
   my %counts = ();
