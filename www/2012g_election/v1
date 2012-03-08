@@ -66,7 +66,7 @@ my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
 
 print $json->encode($output)  if $suffix eq ".json";
-print XMLout($output)         if $suffix eq ".xml";
+print XMLout($output, NoAttr=>1)         if $suffix eq ".xml";
 print jsonp_footer($callback) if $suffix eq ".json";
 
 1;
