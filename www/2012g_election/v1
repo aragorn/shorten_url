@@ -551,9 +551,13 @@ LIMIT 6
     push(@mentions, \%mention);
     push(@rts, \%rt);
   }
-  $candidate->{tweets} = \@tweets;
-  $candidate->{mentions} = \@mentions;
-  $candidate->{rts} = \@rts;
+  $candidate->{tw_tweets} = \@tweets;
+  $candidate->{tw_mentions} = \@mentions;
+  $candidate->{tw_rts} = \@rts;
+
+  $candidate->{tw_tweets_count} = int(rand(1000));
+  $candidate->{tw_following_count} = int(rand(10000));
+  $candidate->{tw_followers_count} = int(rand(10000));
 
   my $help = {
     "API:name" => "SNS 맵 상세",
@@ -572,9 +576,12 @@ LIMIT 6
     homo_id => "검색 인물 정보ID",
     cp_person_id => "CP 인물ID",
     cp_party_id => "CP 정당ID (candidate=actual 인 경우, cp_party_id_2, candidate=potential 인 경우, cp_party_id_1)",
-    tweets => "후보자 새 글",
-    rts => "RT",
-    mentions => "후보자를 언급한 글",
+    tw_tweets => "후보자 새 글",
+    tw_rts => "RT",
+    tw_mentions => "후보자를 언급한 글",
+    tw_tweets_count => "글 수",
+    tw_following_count => "following 수",
+    tw_follower_count => "followers 수",
   };
   
   return (
