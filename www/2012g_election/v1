@@ -196,6 +196,12 @@ sub realtime_dbh {
   return $dbh;
 }
 ###############################################################################
+sub rate {
+  my ($count, $total) = @_;
+
+  return sprintf("%.3f", $count / $total) * 100;
+}
+###############################################################################
 sub district_list {
   my $limit     = param('limit') || 15;
 
@@ -238,7 +244,7 @@ GROUP BY word
       $row->{tw_mentioned_count} = $row->{tw_mentioned_count} + $counts{$candidate} if exists $counts{$candidate}
     }
 
-    $row->{tw_mentioned_share} = sprintf("%.3f", $row->{tw_mentioned_count} / $total) * 100;
+    $row->{tw_mentioned_share} = rate($row->{tw_mentioned_count}, $total);
   }
 
   # Sorting.
@@ -323,9 +329,14 @@ LIMIT 6
     my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8", $row->{candidate_name}));
     my %shared_history = ();
 
+# 6일간 점유율 계산
     foreach my $r ( @{$mentions_ref} ) {
-      $shared_history{$r->{date}} = sprintf("%.3f", $r->{cnt} / $totalcount{$r->{date}}) * 100;
+      $shared_history{$r->{date}} = rate($r->{cnt},$totalcount{$r->{date}});
     }
+
+# 언급이 전혀 없을 경우 임의로 해당 일자에 0을 기입
+    #for ($i = 0;$i < 5; $i++) {
+    #}
 
     $row->{tw_shared_history} = \%shared_history;
   }
@@ -400,7 +411,7 @@ WHERE candidate_name = ?
     my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, Encode::decode("utf8", $row->{word}));
 
     $row->{tw_mentioned_total} = @{$totalcount}[0];
-    $row->{tw_mentioned_share} = sprintf("%.3f", $row->{tw_mentioned_count} / @{$totalcount}[0]) * 100;
+    $row->{tw_mentioned_share} = rate($row->{tw_mentioned_count}, @{$totalcount}[0]);
     $row->{homo_id} = $candidate->{homo_id};
     $row->{cp_person_id} = $candidate->{cp_person_id};
     $row->{cp_party_id_1} = $candidate->{cp_party_id_1};
@@ -438,19 +449,18 @@ sub sns_map_detail {
 select * from candidate where homo_id = ?
   };
  
-  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $homo_id);
+  my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $homo_id);
 
-  foreach my $row ( @{$list} ) {
-    $row->{total} = 2421551;
-    $row->{homo_id} = int(rand(10000));
-    $row->{cp_person_id} = int(rand(10000));
-    $row->{cp_party_id} = 1;
-  }
+  #foreach my $row ( @{$list} ) {
+  #  $row->{total} = 2421551;
+  #  $row->{homo_id} = int(rand(10000));
+  #  $row->{cp_person_id} = int(rand(10000));
+  #  $row->{cp_party_id} = 1;
+  #}
 
   my $help = {
-    "API:name" => "SNS 맵",
-    "API:desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
-    word => "언급된 후보자명",
+    "API:name" => "SNS 맵 상세",
+    "API:desc" => "후보자의 SNS 관련 상세 정보",
     tw_mentioned_count => "언급된 횟수(하루단위)",
     total => "전체 언급 횟수",
     date => "조회 날짜",
@@ -460,7 +470,7 @@ select * from candidate where homo_id = ?
   };
   
   return (
-    results => $list,
+    results => "", #$list,
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
   );
