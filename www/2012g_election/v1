@@ -66,7 +66,7 @@ my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
 
 print $json->encode($output)  if $suffix eq ".json";
-print XMLout($output, NoAttr=>1)         if $suffix eq ".xml";
+print XMLout($output, NoAttr=>1, RootName=>'xml', XMLDecl=>1) if $suffix eq ".xml";
 print jsonp_footer($callback) if $suffix eq ".json";
 
 1;
@@ -287,8 +287,8 @@ GROUP BY word
   }
 
   my $help = {
-    "API:name" => "격전지 왼쪽 리스트",
-    "API:desc" => "이 시각 SNS 격전지에서 사용, 기본 15개",
+    "API_name" => "격전지 왼쪽 리스트",
+    "API_desc" => "이 시각 SNS 격전지에서 사용, 기본 15개",
     sido_cd => "특별/광역/도 코드",
     sido_name => "특별/광역/도 이름",
     sido_short_name => "특별/광역/도 이름의 약칭",
@@ -378,8 +378,8 @@ LIMIT 6
   }
 
   my $help = {
-    "API:name" => "격전지 상세",
-    "API:desc" => "",
+    "API_name" => "격전지 상세",
+    "API_desc" => "",
     nownum  => "순위",
     homo_id => "통합검색 인물ID",
     cp_person_id => "CP 인물ID",
@@ -469,8 +469,8 @@ LIMIT ?
   }
 
   my $help = {
-    "API:name" => "SNS 맵",
-    "API:desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
+    "API_name" => "SNS 맵",
+    "API_desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
     word => "언급된 후보자명",
     tw_mentioned_count => "후보자 언급 횟수",
     tw_mentioned_total => "총선 후보 전체 트윗 수",
@@ -572,8 +572,8 @@ LIMIT 6
   $candidate->{tw_followers_count} = int(rand(10000));
  
   my $help = {
-    "API:name" => "SNS 맵 상세",
-    "API:desc" => "후보자의 SNS 관련 상세 정보",
+    "API_name" => "SNS 맵 상세",
+    "API_desc" => "후보자의 SNS 관련 상세 정보",
     twitter_id => "후보자 트위터 ID",
     candidate_name => "후보자명",
     tw_mentioned_history => "최근 6일간 언급된 수",
@@ -668,8 +668,8 @@ sub tw_realtime_list {
   }
 
   my $help = {
-    "API:name" => "실시간 후보자 트윗",
-    "API:desc" => "해당 후보자의 실시간 트윗 목록을 보여줌",
+    "API_name" => "실시간 후보자 트윗",
+    "API_desc" => "해당 후보자의 실시간 트윗 목록을 보여줌",
   };
 
   return (
@@ -696,8 +696,8 @@ sub tw_rt_list {
   }
 
   my $help = {
-    "API:name" => "최다 RT 트윗",
-    "API:desc" => "많이 RT된 후보자 트윗 최근, 24시간 이내 후보자 트윗 중 가장 많이 RT된 트윗 10건",
+    "API_name" => "최다 RT 트윗",
+    "API_desc" => "많이 RT된 후보자 트윗 최근, 24시간 이내 후보자 트윗 중 가장 많이 RT된 트윗 10건",
   };
 
   return (
