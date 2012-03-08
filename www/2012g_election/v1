@@ -6,11 +6,13 @@ use FindBin;
 FindBin::again();
 use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
 use CGI qw(:standard escape escapeHTML -utf8 -oldstyle_urls);
-use JSON;
 use Encode;
+use JSON;
+use XML::Simple;
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 use POSIX qw(strftime);
+use File::Basename;
 
 my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
 
@@ -19,21 +21,24 @@ CGI->compile();
 # This line should be commented out if output data is encoded properly.
 #binmode STDOUT, ":encoding(UTF-8)";
 
-our $q       = new CGI; $q->charset('utf-8'); # for proper escapeHTML
-our $json    = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
+our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
-my (undef, $query) = split(/\//o, $q->path_info() || "/index", 2);
+my ($path, $query, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt");
 my $from     = param('from')  || 0;
 my $count    = param('count') || 100;
 my $callback = param('callback');
 my $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
-   $content_type = "application/javascript" if $callback; # JSONP
 my $full_url = $q->url(-full=>1);
 
+$suffix = ".json" unless $suffix;
+$content_type = "application/javascript" if $callback and $suffix eq ".json";
+$content_type = "application/xml"        if $suffix eq ".xml";
+
 print $q->header(-charset=>'utf-8', -type=>$content_type);
-print jsonp_header($callback);
+print jsonp_header($callback) if $suffix eq ".json";
 
 my %dispatch = (
   index                       => \&handler_index,
@@ -59,8 +64,9 @@ decode_utf8_in_complex_data($output);
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
 
-print $json->encode($output);
-print jsonp_footer($callback);
+print $json->encode($output)  if $suffix eq ".json";
+print XMLout($output)         if $suffix eq ".xml";
+print jsonp_footer($callback) if $suffix eq ".json";
 
 1;
 
