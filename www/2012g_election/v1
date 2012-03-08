@@ -199,13 +199,16 @@ sub realtime_dbh {
 ###############################################################################
 sub percent {
   my ($count, $total) = @_;
-  return sprintf("%.3f", 100 * $count / $total);
+  return sprintf("%.3f", ($total != 0)?(100 * $count / $total):0);
 }
 ###############################################################################
 sub district_list {
   my $limit     = param('limit') || 15;
-  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", localtime);
-  my $asof_datetime = sprintf("%04d-%02d-%02d %02d:%02d:%02d", unpack("A4A2A2A2A2A2", $asof));
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
 
   my $app2_dbh = mysql_dbh( app2_mysql() );
 # 격전지별 전체 후보 추출
@@ -226,27 +229,28 @@ GROUP BY cp_election_district_id
   $sql = q{
 SELECT word, sum(mention_count) as cnt
 FROM wave_rank_mention_count 
-WHERE pub_date_begin > date_sub(now(), interval 1 day)
+WHERE date_sub(?, interval ? second) <= pub_date_begin
+  AND pub_date_begin <= ?
 GROUP BY word
   };
-  my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} });
+  my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} }, $asof_datetime, $asof_datetime);
 
   # Create an array of counts.
   my %counts = ();
   my $total = 0;
-  foreach my $row ( @{$counts_ref} ) {
-    $counts{$row->{word}} = $row->{cnt};
-    $total = $total + $row->{cnt};
+  foreach ( @{$counts_ref} ) {
+    $counts{$_->{word}} = $_->{cnt};
+    $total = $total + $_->{cnt};
   }
 
   # Manipulate results. 
-  foreach my $row ( @{$list} ) {
-    $row->{tw_mentioned_count} = 0;
-    foreach my $candidate (split(',', $row->{candidate_name})) {
-      $row->{tw_mentioned_count} = $row->{tw_mentioned_count} + $counts{$candidate} if exists $counts{$candidate}
+  foreach ( @{$list} ) {
+    $_->{tw_mentioned_count} = 0;
+    foreach my $candidate (split(',', $_->{candidate_name})) {
+      $_->{tw_mentioned_count} = $_->{tw_mentioned_count} + $counts{$candidate} if exists $counts{$candidate}
     }
 
-    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, $total);
+    $_->{tw_mentioned_share} = percent($_->{tw_mentioned_count}, $total);
   }
 
   # Sorting.
@@ -315,8 +319,8 @@ LIMIT 6
 
   # Create an array of total counts.
   my %totalcount = ();
-  foreach my $row ( @{$counts_ref} ) {
-    $totalcount{$row->{date}} = $row->{sum};
+  foreach ( @{$counts_ref} ) {
+    $totalcount{$_->{date}} = $_->{sum};
   }
 
   foreach my $row ( @{$list} ) {
