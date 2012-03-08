@@ -217,7 +217,7 @@ sub realtime_dbh {
 ###############################################################################
 sub percent {
   my ($count, $total) = @_;
-  return sprintf("%.3f", ($total != 0)?(100 * $count / $total):0);
+  return sprintf("%.2f", ($total != 0)?(100 * $count / $total):0);
 }
 ###############################################################################
 sub district_list {
@@ -226,7 +226,7 @@ sub district_list {
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
-  my $interval  = param('interval') || 86400;
+  my $interval  = param('interval') || 3600;
 
   my $app2_dbh = mysql_dbh( app2_mysql() );
 # 격전지별 전체 후보 추출
@@ -242,8 +242,7 @@ GROUP BY cp_election_district_id
   my $list = $app2_dbh->selectall_arrayref($sql, { Slice => {} });
 
   my $app1_dbh = mysql_dbh(app1_mysql());
-# 1시간 단위 전체 후보자 언급 횟수 추출.
-# TODO: 테스트에서는 1일 단위로 처리, 변경 필요.
+# 전체 후보자 언급 횟수 추출(default: 1시간)
   $sql = q{
 SELECT word, sum(mention_count) as cnt
 FROM wave_rank_mention_count 
@@ -254,7 +253,7 @@ GROUP BY word
   my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} },
     $asof_datetime, $interval, $asof_datetime);
 
-  # Create an array of counts.
+# 카운트 정보를 저장하기 위한 임시 배열, 전체 카운트 저장
   my %counts = ();
   my $total = 0;
   foreach ( @{$counts_ref} ) {
@@ -262,7 +261,7 @@ GROUP BY word
     $total = $total + $_->{cnt};
   }
 
-  # Manipulate results. 
+# 격전지에 해당하는 모든 후보자의 언급한 글 합산
   foreach ( @{$list} ) {
     $_->{tw_mentioned_count} = 0;
     foreach my $candidate (split(',', $_->{candidate_name})) {
@@ -272,10 +271,10 @@ GROUP BY word
     $_->{tw_mentioned_share} = percent($_->{tw_mentioned_count}, $total);
   }
 
-  # Sorting.
+# 언급한 글 순으로 정렬
   my @sorted = sort {$b->{tw_mentioned_count} <=> $a->{tw_mentioned_count}} @{$list};
 
-  # Limiting array results.
+# limit 에 따른 초과분 삭제
   foreach my $index(0 .. $#sorted) {
     delete $sorted[$index] if $index > $limit - 1;
   }
@@ -336,7 +335,7 @@ LIMIT 6
   };
   my $counts_ref = $dbh->selectall_arrayref($sql, { Slice => {} });
 
-  # Create an array of total counts.
+# 전체 카운트 저장
   my %totalcount = ();
   foreach ( @{$counts_ref} ) {
     $totalcount{$_->{date}} = $_->{sum};
@@ -354,21 +353,20 @@ ORDER BY date desc
 LIMIT 6
   };
     my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8",$row->{candidate_name}));
-    my %shared_history = ();
 
-# 6일간 점유율 계산
-    foreach my $r ( @{$mentions_ref} ) {
-      $shared_history{$r->{date}} = percent($r->{cnt},$totalcount{$r->{date}});
+# 카운트 정보를 저장하기 위한 임시 배열
+    my %counts = ();
+    foreach ( @{$mentions_ref} ) {
+      $counts{$_->{date}} = $_->{cnt};
     }
 
-# 언급이 전혀 없을 경우 임의로 해당 일자에 0을 기입
-    #for ($i = 0;$i < 5; $i++) {
-  #use Time::localtime;
-  #my $t = localtime;
-  #
-  #my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
-    #}
-
+# 6일간 점유율 계산, 없으면 0으로 채움
+    my %shared_history = ();
+    for (my $i=0;$i < 6;$i++) {
+      my $date = strftime("%Y-%m-%d", (localtime(time - $i*60*60*24)));
+      $shared_history{$date} = exists $counts{$date}
+                              ? percent($counts{$date},$totalcount{$date}) : 0;
+    }
     $row->{tw_shared_history} = \%shared_history;
   }
 
@@ -490,6 +488,7 @@ LIMIT ?
 
 sub sns_map_detail {
   my $homo_id = param('homo_id');
+  my $candidate_type = param('candidate') || 'actual';
 
 # 후보자 정보 추출
   my @mysql_dsn = app2_mysql();
@@ -513,39 +512,69 @@ ORDER BY date desc
 LIMIT 6
   };
 
-  #print ($candidate->{candidate_name});
   my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8", $candidate->{candidate_name}));
   my %mentioned_history = ();
   my %rt_history = ();
   my %tw_history = ();
-# 6일간 점유율 계산
+# 6일간 언급, RT, 트윗 수 기록
   foreach my $r ( @{$mentions_ref} ) {
     $mentioned_history{$r->{date}} = $r->{cnt};
     $rt_history{$r->{date}} = int(rand(1000));
     $tw_history{$r->{date}} = int(rand(10));
   }
-
-# 언급이 전혀 없을 경우 임의로 해당 일자에 0을 기입
-    #for ($i = 0;$i < 5; $i++) {
-  #use Time::localtime;
-  #my $t = localtime;
-  #
-  #my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
-    #}
-
   $candidate->{tw_mentioned_history} = \%mentioned_history;
   $candidate->{tw_rt_history} = \%rt_history;
   $candidate->{tw_tweet_history} = \%tw_history;
 
+  $candidate->{cp_party_id} = $candidate_type eq 'potential'
+                            ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
+
+# 언급한 글, 새 글, 소문난 리스트 임시
+  my @tweets;
+  my @mentions;
+  my @rts;
+  for (my $i=0;$i<10;$i++) {
+    my %tweet = (
+                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템"
+                );
+    my %mention = (
+                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템"
+                );
+    my %rt = (
+                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템"
+                );
+
+    push(@tweets, \%tweet);
+    push(@mentions, \%mention);
+    push(@rts, \%rt);
+  }
+  $candidate->{tweets} = \@tweets;
+  $candidate->{mentions} = \@mentions;
+  $candidate->{rts} = \@rts;
+
   my $help = {
     "API:name" => "SNS 맵 상세",
     "API:desc" => "후보자의 SNS 관련 상세 정보",
-    tw_mentioned_count => "언급된 횟수(하루단위)",
-    total => "전체 언급 횟수",
-    date => "조회 날짜",
-    home_id => "",
-    cp_person_id => "",
-    cp_party_id => "정당 코드",
+    twitter_id => "후보자 트위터 ID",
+    candidate_name => "후보자명",
+    tw_mentioned_history => "최근 6일간 언급된 수",
+    tw_rt_history => "최근 6일간 RT 수",
+    tw_tweet_history => "최근 6일간 후보자 트윗 수",
+    sido_cd => "특별/광역/도 코드",
+    sido_name => "특별/광역/도 이름",
+    sido_short_name => "특별/광역/도 이름의 약칭",
+    cp_election_district_id => "CP_선거구ID",
+    election_district_name => "선거구 이름",
+    election_district_short_name => "선거구 이름의 약칭",
+    homo_id => "검색 인물 정보ID",
+    cp_person_id => "CP 인물ID",
+    cp_party_id => "CP 정당ID (candidate=actual 인 경우, cp_party_id_2, candidate=potential 인 경우, cp_party_id_1)",
+    tweets => "후보자 새 글",
+    rts => "RT",
+    mentions => "후보자를 언급한 글",
   };
   
   return (
