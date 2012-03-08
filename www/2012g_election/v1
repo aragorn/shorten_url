@@ -49,6 +49,8 @@ my %dispatch = (
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
   realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
   candidate                   => \&election_candidate,
+  tw_realtime_list            => \&tw_realtime_list,
+  tw_rt_list                  => \&tw_rt_list,
 );
 
 my $output = {};
@@ -517,7 +519,6 @@ GROUP BY date(pub_date_begin)
 ORDER BY date desc
 LIMIT 6
   };
-
   my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8", $candidate->{candidate_name}));
   my %mentioned_history = ();
   my %rt_history = ();
@@ -570,7 +571,7 @@ LIMIT 6
   $candidate->{tw_tweets_count} = int(rand(1000));
   $candidate->{tw_following_count} = int(rand(10000));
   $candidate->{tw_followers_count} = int(rand(10000));
-
+ 
   my $help = {
     "API:name" => "SNS 맵 상세",
     "API:desc" => "후보자의 SNS 관련 상세 정보",
@@ -651,6 +652,62 @@ FROM
     results => $dbh->selectall_arrayref($sql, { Slice => {} }, @where_param),
     help => $help,
     debug => { mysql => $mysql_dsn[0], },
+  );
+}
+
+sub tw_realtime_list {
+  my @tweets;
+  for (my $i=0;$i<10;$i++) {
+    my %tweet = (
+                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
+                  "twitter_id" => "xxxxx",
+                  "permalink" => "twitter.com/xxxxx/28480802",
+                );
+
+    push(@tweets, \%tweet);
+  }
+
+  my $help = {
+    "API:name" => "실시간 후보자 트윗",
+    "API:desc" => "해당 후보자의 실시간 트윗 목록을 보여줌",
+  };
+
+  return (
+    results => \@tweets,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
+  );
+}
+
+sub tw_rt_list {
+  my @rts;
+  for (my $i=0;$i<10;$i++) {
+    my %rt = (
+                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
+                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
+                  "twitter_id" => "xxxxx",
+                  "permalink" => "twitter.com/xxxxx/28480802",
+                );
+
+    push(@rts, \%rt);
+  }
+
+  my $help = {
+    "API:name" => "최다 RT 트윗",
+    "API:desc" => "많이 RT된 후보자 트윗 최근, 24시간 이내 후보자 트윗 중 가장 많이 RT된 트윗 10건",
+  };
+
+  return (
+    results => \@rts,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
   );
 }
 
