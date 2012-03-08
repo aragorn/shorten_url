@@ -197,10 +197,9 @@ sub realtime_dbh {
   return $dbh;
 }
 ###############################################################################
-sub rate {
+sub percent {
   my ($count, $total) = @_;
-
-  return sprintf("%.3f", $count / $total) * 100;
+  return sprintf("%.3f", 100 * $count / $total);
 }
 ###############################################################################
 sub district_list {
@@ -247,7 +246,7 @@ GROUP BY word
       $row->{tw_mentioned_count} = $row->{tw_mentioned_count} + $counts{$candidate} if exists $counts{$candidate}
     }
 
-    $row->{tw_mentioned_share} = rate($row->{tw_mentioned_count}, $total);
+    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, $total);
   }
 
   # Sorting.
@@ -336,7 +335,7 @@ LIMIT 6
 
 # 6일간 점유율 계산
     foreach my $r ( @{$mentions_ref} ) {
-      $shared_history{$r->{date}} = rate($r->{cnt},$totalcount{$r->{date}});
+      $shared_history{$r->{date}} = percent($r->{cnt},$totalcount{$r->{date}});
     }
 
 # 언급이 전혀 없을 경우 임의로 해당 일자에 0을 기입
@@ -418,7 +417,7 @@ WHERE candidate_name = ?
     my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, Encode::decode("utf8", $row->{word}));
 
     $row->{tw_mentioned_total} = @{$totalcount}[0];
-    $row->{tw_mentioned_share} = rate($row->{tw_mentioned_count}, @{$totalcount}[0]);
+    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, @{$totalcount}[0]);
     $row->{homo_id} = $candidate->{homo_id};
     $row->{cp_person_id} = $candidate->{cp_person_id};
 
