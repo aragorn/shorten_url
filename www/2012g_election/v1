@@ -15,7 +15,6 @@ use POSIX qw(strftime);
 use File::Basename;
 
 my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
-
 CGI->compile();
 
 # This line should be commented out if output data is encoded properly.
@@ -26,7 +25,7 @@ our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
-my ($path, $query, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt");
+my ($query, $path, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt");
 my $from     = param('from')  || 0;
 my $count    = param('count') || 100;
 my $callback = param('callback');
@@ -191,7 +190,7 @@ sub app1_mysql {
      $db_user = "twapp1t";
      $db_pass = "app123";
   }
-  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass, {mysql_enable_utf8 => 1});
 }
 
 sub app2_mysql {
@@ -210,7 +209,7 @@ sub app2_mysql {
      $db_user = "twapp1t";
      $db_pass = "app123";
   }
-  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass);
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass, {mysql_enable_utf8 => 1});
 }
 
 sub realtime_dbh {
@@ -219,7 +218,7 @@ sub realtime_dbh {
   my $db_user = q(cdwuser);
   my $db_pass = q(cdwuserdb);
 
-  my $dbh = DBI->connect($database, $db_user, $db_pass);
+  my $dbh = DBI->connect($database, $db_user, $db_pass, {mysql_enable_utf8 => 1});
   return $dbh;
 }
 ###############################################################################
