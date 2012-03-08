@@ -149,6 +149,24 @@ sub mysql_dbh {
 }
 
 ###############################################################################
+sub app1_schema {
+  my $schema  = "twapp1";
+  unless ( $q->server_port eq "80"
+       and defined $ENV{GATEWAY_INTERFACE} ) {
+     $schema  = "twapp1t";
+  }
+  return $schema;
+}
+
+sub app2_schema {
+  my $schema  = "twapp2";
+  unless ( $q->server_port eq "80"
+       and defined $ENV{GATEWAY_INTERFACE} ) {
+     $schema  = "twapp2t";
+  }
+  return $schema;
+}
+
 sub app1_mysql {
   my @slaves = (
     q(10.10.208.21),
@@ -385,6 +403,11 @@ LIMIT 6
 sub sns_map {
   my $limit     = param('limit') || 100;
   my $candidate_type = param('candidate') || 'actual';
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
 
   use Time::localtime;
   my $t = localtime;
@@ -392,47 +415,46 @@ sub sns_map {
   my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
 
   my @mysql_dsn = app1_mysql();
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
   my $dbh = mysql_dbh(@mysql_dsn);
 # 특정일 전체 언급 수 추출
-  my $sql = q{
+  my $sql = qq{
 SELECT sum(mention_count)
-FROM wave_rank_mention_count
-WHERE date(pub_date_begin) = ?
+FROM $app1_schema.wave_rank_mention_count
+WHERE date_sub(?, interval ? second) <= pub_date_begin
+  AND pub_date_begin <= ?
   };
-  my $totalcount = $dbh->selectrow_arrayref($sql, { Slice => {} }, $date);
+  my $totalcount = $dbh->selectrow_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime);
 
 # 특정일에 따른 후보자 언급 수
-  $sql = q{
-SELECT word, sum(mention_count) as tw_mentioned_count, date(pub_date_begin) as `date`
-FROM wave_rank_mention_count
-WHERE date(pub_date_begin) = ?
-GROUP BY date(pub_date_begin), word 
-ORDER BY tw_mentioned_count DESC 
+  $sql = qq{
+SELECT * FROM
+(
+   SELECT word, sum(mention_count) as tw_mentioned_count, date(pub_date_begin) as `date`
+   FROM $app1_schema.wave_rank_mention_count
+   WHERE date_sub(?, interval ? second) <= pub_date_begin
+     AND pub_date_begin <= ?
+   GROUP BY word 
+   ORDER BY tw_mentioned_count DESC 
+) wc,
+$app2_schema.candidate
+WHERE wc.word = $app2_schema.candidate.candidate_name
+ORDER BY tw_mentioned_count DESC
 LIMIT ?
   };
-  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $date, $limit);
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime, $limit);
 
 # 이름과 매칭되는 후보자 정보 추출
   $dbh = mysql_dbh(app2_mysql());
   foreach my $row ( @{$list} ) {
-    my $sql = qq{
-SELECT 
-       homo_id, cp_person_id, candidate_name, election_symbol,
-       cp_party_id_1, cp_party_id_2, party_name, party_short_name,
-       twitter_id, cp_election_district_id
-FROM candidate
-WHERE candidate_name = ?
-    };
-    my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, Encode::decode("utf8", $row->{word}));
-
     $row->{tw_mentioned_total} = @{$totalcount}[0];
     $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, @{$totalcount}[0]);
-    $row->{homo_id} = $candidate->{homo_id};
-    $row->{cp_person_id} = $candidate->{cp_person_id};
 
     $row->{cp_party_id} = $candidate_type eq 'potential'
-                        ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
-    $row->{cp_election_district_id} = $candidate->{cp_election_district_id};
+                        ? $row->{cp_party_id_1} : $row->{cp_party_id_2};
   }
 
 # 후보자 정보 homo_id 가 null이 아닌 경우에만 유용한 결과로 필터링
@@ -455,11 +477,13 @@ WHERE candidate_name = ?
   };
 
   return (
-    results => \@filtered,
+    results => $list,
     help => $help,
     debug => {
       app1_mysql => (app1_mysql())[0],
       app2_mysql => (app2_mysql())[0],
+      asof => $asof,
+      asof_datetime => $asof_datetime,
     },
   );
 }
