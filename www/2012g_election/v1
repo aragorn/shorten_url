@@ -398,6 +398,7 @@ LIMIT ?
   };
   my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $date, $limit);
 
+# 이름과 매칭되는 후보자 정보 추출
   $dbh = mysql_dbh(app2_mysql());
   foreach my $row ( @{$list} ) {
     my $sql = q{
@@ -419,6 +420,12 @@ WHERE candidate_name = ?
     $row->{cp_election_district_id} = $candidate->{cp_election_district_id};
   }
 
+# 후보자 정보 homo_id 가 null 인 경우 결과에서 제외
+  my @filtered;
+  foreach my $index(0 .. $#{$list}) {
+    push(@filtered, ${$list}[$index]) if defined ${$list}[$index]->{homo_id};
+  }
+
   my $help = {
     "API:name" => "SNS 맵",
     "API:desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
@@ -434,9 +441,12 @@ WHERE candidate_name = ?
   };
 
   return (
-    results => $list,
+    results => \@filtered,
     help => $help,
-    debug => { mysql => $mysql_dsn[0], },
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
   );
 }
 
