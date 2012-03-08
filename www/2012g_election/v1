@@ -335,7 +335,7 @@ GROUP BY date(pub_date_begin)
 ORDER BY date desc
 LIMIT 6
   };
-    my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8", $row->{candidate_name}));
+    my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8",$row->{candidate_name}));
     my %shared_history = ();
 
 # 6일간 점유율 계산
@@ -345,6 +345,10 @@ LIMIT 6
 
 # 언급이 전혀 없을 경우 임의로 해당 일자에 0을 기입
     #for ($i = 0;$i < 5; $i++) {
+  #use Time::localtime;
+  #my $t = localtime;
+  #
+  #my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
     #}
 
     $row->{tw_shared_history} = \%shared_history;
@@ -431,7 +435,7 @@ WHERE candidate_name = ?
     $row->{cp_election_district_id} = $candidate->{cp_election_district_id};
   }
 
-# 후보자 정보 homo_id 가 null 인 경우 결과에서 제외
+# 후보자 정보 homo_id 가 null이 아닌 경우에만 유용한 결과로 필터링
   my @filtered;
   foreach my $index(0 .. $#{$list}) {
     push(@filtered, ${$list}[$index]) if defined ${$list}[$index]->{homo_id};
@@ -463,20 +467,51 @@ WHERE candidate_name = ?
 sub sns_map_detail {
   my $homo_id = param('homo_id');
 
+# 후보자 정보 추출
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
   my $sql = q{
-select * from candidate where homo_id = ?
+SELECT *
+FROM candidate 
+WHERE homo_id = ?
   };
- 
   my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $homo_id);
 
-  #foreach my $row ( @{$list} ) {
-  #  $row->{total} = 2421551;
-  #  $row->{homo_id} = int(rand(10000));
-  #  $row->{cp_person_id} = int(rand(10000));
-  #  $row->{cp_party_id} = 1;
-  #}
+  $dbh = mysql_dbh(app1_mysql());
+# 최근 6일간 후보자 언급 수 추출
+  $sql = q{
+SELECT date(pub_date_begin) as `date`, sum(mention_count) as `cnt` 
+FROM wave_rank_mention_count
+WHERE word = ?
+AND pub_date_begin > date_sub(now(), interval 5 day)
+GROUP BY date(pub_date_begin)
+ORDER BY date desc
+LIMIT 6
+  };
+
+  #print ($candidate->{candidate_name});
+  my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8", $candidate->{candidate_name}));
+  my %mentioned_history = ();
+  my %rt_history = ();
+  my %tw_history = ();
+# 6일간 점유율 계산
+  foreach my $r ( @{$mentions_ref} ) {
+    $mentioned_history{$r->{date}} = $r->{cnt};
+    $rt_history{$r->{date}} = int(rand(1000));
+    $tw_history{$r->{date}} = int(rand(10));
+  }
+
+# 언급이 전혀 없을 경우 임의로 해당 일자에 0을 기입
+    #for ($i = 0;$i < 5; $i++) {
+  #use Time::localtime;
+  #my $t = localtime;
+  #
+  #my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
+    #}
+
+  $candidate->{tw_mentioned_history} = \%mentioned_history;
+  $candidate->{tw_rt_history} = \%rt_history;
+  $candidate->{tw_tweet_history} = \%tw_history;
 
   my $help = {
     "API:name" => "SNS 맵 상세",
@@ -490,9 +525,12 @@ select * from candidate where homo_id = ?
   };
   
   return (
-    results => "", #$list,
+    results => $candidate,
     help => $help,
-    debug => { mysql => $mysql_dsn[0], },
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
   );
 }
 
