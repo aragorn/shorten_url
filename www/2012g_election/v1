@@ -10,6 +10,7 @@ use JSON;
 use Encode;
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
+use POSIX qw(strftime);
 
 my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
 
@@ -204,6 +205,8 @@ sub rate {
 ###############################################################################
 sub district_list {
   my $limit     = param('limit') || 15;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", localtime);
+  my $asof_datetime = sprintf("%04d-%02d-%02d %02d:%02d:%02d", unpack("A4A2A2A2A2A2", $asof));
 
   my $app2_dbh = mysql_dbh( app2_mysql() );
 # 격전지별 전체 후보 추출
@@ -276,6 +279,8 @@ GROUP BY word
     debug => {
       app1_mysql => (app1_mysql())[0],
       app2_mysql => (app2_mysql())[0],
+      asof => $asof,
+      asof_datetime => $asof_datetime,
     },
   );
 }
@@ -371,6 +376,7 @@ LIMIT 6
 
 sub sns_map {
   my $limit     = param('limit') || 100;
+  my $candidate_type = param('candidate') || 'actual';
 
   use Time::localtime;
   my $t = localtime;
@@ -401,7 +407,7 @@ LIMIT ?
 # 이름과 매칭되는 후보자 정보 추출
   $dbh = mysql_dbh(app2_mysql());
   foreach my $row ( @{$list} ) {
-    my $sql = q{
+    my $sql = qq{
 SELECT 
        homo_id, cp_person_id, candidate_name, election_symbol,
        cp_party_id_1, cp_party_id_2, party_name, party_short_name,
@@ -415,8 +421,9 @@ WHERE candidate_name = ?
     $row->{tw_mentioned_share} = rate($row->{tw_mentioned_count}, @{$totalcount}[0]);
     $row->{homo_id} = $candidate->{homo_id};
     $row->{cp_person_id} = $candidate->{cp_person_id};
-    $row->{cp_party_id_1} = $candidate->{cp_party_id_1};
-    $row->{cp_party_id_2} = $candidate->{cp_party_id_2};
+
+    $row->{cp_party_id} = $candidate_type eq 'potential'
+                        ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
     $row->{cp_election_district_id} = $candidate->{cp_election_district_id};
   }
 
@@ -435,8 +442,7 @@ WHERE candidate_name = ?
     tw_mentioned_share => "점유율",
     homo_id => "검색 인물 정보ID",
     cp_person_id => "CP 인물ID",
-    cp_party_id_1 => "CP 정당ID",
-    cp_party_id_2 => "CP 정당ID",
+    cp_party_id => "CP 정당ID (candidate=actual 인 경우, cp_party_id_2, candidate=potential 인 경우, cp_party_id_1)",
     cp_election_district_id => "CP_선거구ID",
   };
 
