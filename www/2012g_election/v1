@@ -222,6 +222,17 @@ sub realtime_dbh {
   return $dbh;
 }
 ###############################################################################
+sub date_list {
+  my ($asof_datetime, $count) = @_;
+  use HTTP::Date;
+  my $epoch = str2time($asof_datetime);
+  my @list;
+  foreach ( 0..($count-1) ) {
+    push @list, strftime("%Y-%m-%d", localtime($epoch - $_ * 86400));
+  }
+  return @list;
+}
+
 sub percent {
   my ($count, $total) = @_;
   return sprintf("%.2f", ($total != 0)?(100 * $count / $total):0);
@@ -315,76 +326,75 @@ GROUP BY word
 
 sub district {
   my $id = param('id');
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
 # 특정 격전지 후보 추출
-  my $sql = q{
+  my $sql = qq{
 SELECT 
        c.homo_id, c.cp_person_id, c.candidate_name, c.election_symbol,
        c.cp_party_id_1, c.cp_party_id_2, c.party_name, c.party_short_name,
        c.twitter_id, c.cp_election_district_id,
        d.x as wcongnamul_x, d.y as wcongnamul_y
-FROM candidate c, district_map_coordinates d
+FROM $app2_schema.candidate c, $app2_schema.district_map_coordinates d
 WHERE c.cp_election_district_id = d.cp_election_district_id
 AND c.cp_election_district_id = ?
   };
   my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $id);
   
   $dbh = mysql_dbh(app1_mysql());
-# 최근 6일간 전체 언급 수 추출
-  $sql = q{
-SELECT date(pub_date_begin) as `date`, sum(mention_count) as `sum` 
-FROM wave_rank_mention_count
-GROUP BY date(pub_date_begin)
-ORDER BY date desc
-LIMIT 6
-  };
-  my $counts_ref = $dbh->selectall_arrayref($sql, { Slice => {} });
 
-# 전체 카운트 저장
-  my %totalcount = ();
-  foreach ( @{$counts_ref} ) {
-    $totalcount{$_->{date}} = $_->{sum};
-  }
+# 특정 격전지의 기준일 대비 과거 10일간, 각 후보자들의 언급횟수 총합
+  $sql = qq{
+SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
+FROM $app1_schema.wave_rank_mention_count wc, $app2_schema.candidate c
+WHERE c.cp_election_district_id = ?
+  AND c.candidate_name = wc.word
+  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY date(wc.pub_date_begin)
+ORDER BY date desc
+  };
+  my $total_counts = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+    $id, $asof_datetime, $asof_datetime);
+
+  my @date_list = date_list($asof_datetime, 10);
+  my $asof_date = @date_list[0];
+  #print "date_list=", join(",", @date_list), "\n";
 
   foreach my $row ( @{$list} ) {
 # 최근 6일간 후보자 언급 수 추출
-    $sql = q{
-SELECT date(pub_date_begin) as `date`, sum(mention_count) as `cnt` 
-FROM wave_rank_mention_count
-WHERE word = ?
-  AND pub_date_begin > date_sub(now(), interval 5 day)
-GROUP BY date(pub_date_begin)
+    $sql = qq{
+SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
+FROM $app1_schema.wave_rank_mention_count wc
+WHERE wc.word = ?
+  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY date(wc.pub_date_begin)
 ORDER BY date desc
-LIMIT 6
-  };
-    my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8",$row->{candidate_name}));
-
-# 카운트 정보를 저장하기 위한 임시 배열
-    my %counts = ();
-    foreach ( @{$mentions_ref} ) {
-      $counts{$_->{date}} = $_->{cnt};
+    };
+    my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+      Encode::decode("utf8",$row->{candidate_name}),
+      $asof_datetime, $asof_datetime);
+    $row->{tw_shared_history} = [];
+    foreach my $date ( @date_list ) { # 점유율 계산
+      $_ = $mentions_ref->{$date} || { date => $date, count => 0 };
+      $_->{share} = percent($_->{count}, $total_counts->{$date}->{count});
+      push @{$row->{tw_shared_history}}, $_;
     }
-
-# 6일간 점유율 계산, 없으면 0으로 채움
-    my @shared_history = ();
-    for (my $i=0;$i < 6;$i++) {
-      my @d = (localtime(time - $i*86400));
-      #print "d=[", join(",", @d), "]\n";
-      my $date = sprintf("%04d-%02d-%02d", $d[5]+1900, $d[4]+1, $d[3]);
-      #strftime("%Y-%m-%d", @d);
-      push @shared_history,
-           { date => $date,
-             count => $counts{$date} || 0,
-             share => percent($counts{$date} || 0, $totalcount{$date})
-           };
-    }
-    $row->{tw_shared_history} = \@shared_history;
+    $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
+    $row->{tw_mentioned_share} = $mentions_ref->{$asof_date}->{share} || 0;
   }
   my $sorted_list = [
-    sort { $b->{tw_shared_history}->[0]->{share}
-       <=> $a->{tw_shared_history}->[0]->{share} } @{$list} ];
+    sort { $b->{tw_mentioned_count}
+       <=> $a->{tw_mentioned_count} } @{$list}
+  ];
 
   my $help = {
     "API_name" => "격전지 상세",
