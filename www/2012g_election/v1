@@ -561,8 +561,6 @@ ORDER BY date desc
     };
     push @count_history, $_;
   }
-  #$candidate->{tw_mentioned_history} = \%mentioned_history;
-  #$candidate->{tw_rt_history} = \%rt_history;
   $candidate->{tw_count_history} = \@count_history;
 
   $candidate->{cp_party_id} = $candidate_type eq 'potential'
