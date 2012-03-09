@@ -415,18 +415,13 @@ LIMIT 6
 }
 
 sub sns_map {
-  my $limit     = param('limit') || 100;
   my $candidate_type = param('candidate') || 'actual';
+  my $limit     = param('limit') || 100;
   my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
   my $interval  = param('interval') || 86400;
-
-  use Time::localtime;
-  my $t = localtime;
-  
-  my $date = param('date') || sprintf( "%04d-%02d-%02d", $t->year + 1900, $t->mon + 1, $t->mday);
 
   my @mysql_dsn = app1_mysql();
   my $app1_schema = app1_schema();
