@@ -365,7 +365,7 @@ ORDER BY date desc
     $id, $asof_datetime, $asof_datetime);
 
   my @date_list = date_list($asof_datetime, 10);
-  my $asof_date = @date_list[0];
+  my $asof_date = $date_list[0];
   #print "date_list=", join(",", @date_list), "\n";
 
   foreach my $row ( @{$list} ) {
@@ -509,42 +509,61 @@ LIMIT ?
 
 sub sns_map_detail {
   my $homo_id = param('homo_id');
+  my $cp_person_id = param('cp_person_id');
   my $candidate_type = param('candidate') || 'actual';
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
 
 # 후보자 정보 추출
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
   my $sql = q{
 SELECT *
 FROM candidate 
-WHERE homo_id = ?
+WHERE cp_person_id = ?
   };
-  my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $homo_id);
+  my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $cp_person_id);
 
   $dbh = mysql_dbh(app1_mysql());
 # 최근 6일간 후보자 언급 수 추출
-  $sql = q{
-SELECT date(pub_date_begin) as `date`, sum(mention_count) as `cnt` 
-FROM wave_rank_mention_count
-WHERE word = ?
-AND pub_date_begin > date_sub(now(), interval 5 day)
-GROUP BY date(pub_date_begin)
+  $sql = qq{
+SELECT date(pub_date_begin) as `date`,
+       sum(mention_count) as `mention_count`,
+       FLOOR( RAND() * 10 ) AS rt_count,
+       FLOOR( RAND() * 10 ) AS tweet_count
+FROM $app1_schema.wave_rank_mention_count wc
+WHERE wc.word = ?
+  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY date(wc.pub_date_begin)
 ORDER BY date desc
-LIMIT 6
   };
-  my $mentions_ref = $dbh->selectall_arrayref($sql, { Slice => {} }, Encode::decode("utf8", $candidate->{candidate_name}));
-  my %mentioned_history = ();
-  my %rt_history = ();
-  my %tw_history = ();
+  my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+    Encode::decode("utf8", $candidate->{candidate_name}),
+    $asof_datetime, $asof_datetime);
+  my @count_history = ();
+
+#use Data::Dumper;
+#print Dumper($mentions_ref), "\n";
+
 # 6일간 언급, RT, 트윗 수 기록
-  foreach my $r ( @{$mentions_ref} ) {
-    $mentioned_history{$r->{date}} = $r->{cnt};
-    $rt_history{$r->{date}} = int(rand(1000));
-    $tw_history{$r->{date}} = int(rand(10));
+  my @date_list = date_list($asof_datetime, 10);
+  foreach my $date ( @date_list ) {
+    $_ = $mentions_ref->{$date} || {
+      date => $date,
+      mention_count => 0,
+      rt_count => 0,
+      tweet_count => 0,
+    };
+    push @count_history, $_;
   }
-  $candidate->{tw_mentioned_history} = \%mentioned_history;
-  $candidate->{tw_rt_history} = \%rt_history;
-  $candidate->{tw_tweet_history} = \%tw_history;
+  #$candidate->{tw_mentioned_history} = \%mentioned_history;
+  #$candidate->{tw_rt_history} = \%rt_history;
+  $candidate->{tw_count_history} = \@count_history;
 
   $candidate->{cp_party_id} = $candidate_type eq 'potential'
                             ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
