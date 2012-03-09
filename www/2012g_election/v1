@@ -368,14 +368,23 @@ LIMIT 6
     }
 
 # 6일간 점유율 계산, 없으면 0으로 채움
-    my %shared_history = ();
+    my @shared_history = ();
     for (my $i=0;$i < 6;$i++) {
-      my $date = strftime("%Y-%m-%d", (localtime(time - $i*60*60*24)));
-      $shared_history{$date} = exists $counts{$date}
-                              ? percent($counts{$date},$totalcount{$date}) : 0;
+      my @d = (localtime(time - $i*86400));
+      #print "d=[", join(",", @d), "]\n";
+      my $date = sprintf("%04d-%02d-%02d", $d[5]+1900, $d[4]+1, $d[3]);
+      #strftime("%Y-%m-%d", @d);
+      push @shared_history,
+           { date => $date,
+             count => $counts{$date} || 0,
+             share => percent($counts{$date} || 0, $totalcount{$date})
+           };
     }
-    $row->{tw_shared_history} = \%shared_history;
+    $row->{tw_shared_history} = \@shared_history;
   }
+  my $sorted_list = [
+    sort { $b->{tw_shared_history}->[0]->{share}
+       <=> $a->{tw_shared_history}->[0]->{share} } @{$list} ];
 
   my $help = {
     "API_name" => "격전지 상세",
@@ -396,7 +405,7 @@ LIMIT 6
   };
 
   return (
-    results => $list,
+    results => $sorted_list,
     help => $help,
     debug => {
       app1_mysql => (app1_mysql())[0],
