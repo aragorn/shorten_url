@@ -4,7 +4,7 @@ use warnings;
 use utf8;
 use FindBin;
 FindBin::again();
-use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
+#use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
 use CGI qw(:standard escape escapeHTML -utf8 -oldstyle_urls);
 use Encode;
 use JSON;
