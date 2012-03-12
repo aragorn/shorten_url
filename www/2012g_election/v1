@@ -581,29 +581,14 @@ ORDER BY date desc
 
   my ($timeline_count, $timeline_ref)
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
+  my ($mentioned_count, $mentioned_ref)
+    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+  my ($retweeted_count, $retweeted_ref)
+    = twitter_user_timeline($candidate->{twitter_id}, $asof);
 
-  my @mentions;
-  my @rts;
-  for (my $i=0;$i<10;$i++) {
-    my %mention = (
-                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
-                  "twitter_id" => "xxxxx",
-                  "permalink" => "twitter.com/xxxxx/28480802",
-                );
-    my %rt = (
-                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
-                  "twitter_id" => "xxxxx",
-                  "permalink" => "twitter.com/xxxxx/28480802",
-                );
-
-    push(@mentions, \%mention);
-    push(@rts, \%rt);
-  }
   $candidate->{twitter_timeline} = $timeline_ref;
-  $candidate->{tw_mentions} = \@mentions;
-  $candidate->{tw_rts} = \@rts;
+  $candidate->{twitter_mentioned} = $mentioned_ref;
+  $candidate->{twitter_retweeted} = $retweeted_ref;
 
   my $help = {
     "API_name" => "SNS 맵 상세",
@@ -834,6 +819,13 @@ sub twitter_user_timeline {
   my $list_ref = $data_ref->{ds}->{data};
 
   return ($count, $list_ref);
+}
+
+sub twitter_mentioned_top {
+  my ($user, $asof) = @_;
+  $asof = substr($asof.("0"x14), 0, 14);
+
+
 }
 
 sub realtime_ddm_dynamic_status {
