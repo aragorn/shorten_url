@@ -862,7 +862,7 @@ LIMIT 25
     $user, $asof_datetime, $asof_datetime);
   my @status_id = keys %{$retweeted_top};
 
-  map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
+  #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = twitter_doc(@status_id);
 
