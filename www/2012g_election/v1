@@ -57,6 +57,7 @@ my %dispatch = (
   debug_twitter               => \&debug_twitter,
   debug_twitter_profile       => \&debug_twitter_profile,
   debug_twitter_user_timeline => \&debug_twitter_user_timeline,
+  debug_retweeted_top         => \&debug_retweeted_top,
 );
 
 my $output = {};
@@ -544,7 +545,7 @@ WHERE cp_person_id = ?
   $sql = qq{
 SELECT date(pub_date_begin) as `date`,
        sum(mention_count) as `mention_count`,
-       FLOOR( RAND() * 10 ) AS rt_count,
+       FLOOR( RAND() * 10 ) AS retweet_count,
        FLOOR( RAND() * 10 ) AS tweet_count
 FROM $app1_schema.wave_rank_mention_count wc
 WHERE wc.word = ?
@@ -567,7 +568,7 @@ ORDER BY date desc
     $_ = $mentions_ref->{$date} || {
       date => $date,
       mention_count => 0,
-      rt_count => 0,
+      retweet_count => 0,
       tweet_count => 0,
     };
     push @count_history, $_;
@@ -584,7 +585,7 @@ ORDER BY date desc
   my ($mentioned_count, $mentioned_ref)
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
   my ($retweeted_count, $retweeted_ref)
-    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+    = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime);
 
   $candidate->{twitter_timeline} = $timeline_ref;
   $candidate->{twitter_mentioned} = $mentioned_ref;
@@ -819,6 +820,59 @@ sub twitter_user_timeline {
   my $list_ref = $data_ref->{ds}->{data};
 
   return ($count, $list_ref);
+}
+
+sub debug_retweeted_top {
+  my $user = param('twitter_id') || 'moonriver365';
+  my $asof = param('asof')       || '20120310';
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+
+  my ($count, $list_ref) = twitter_retweeted_top($user, $asof_datetime);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub twitter_retweeted_top {
+  my ($user, $asof_datetime) = @_;
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+
+  my $sql = qq{
+SELECT CONCAT(screen_name, '|', id) AS status_id, SUM(rt_count) AS retweeted_count_sum
+FROM $app2_schema.candidate c
+LEFT OUTER JOIN $app2_schema.rt_count s ON c.twitter_id = s.screen_name
+WHERE c.twitter_id = ?
+  AND date_sub(?, interval 24 hour) <= s.pub_date_begin AND s.pub_date_begin <= ?
+GROUP BY s.screen_name, s.id
+ORDER BY retweeted_count_sum DESC
+LIMIT 25
+  };
+  my $retweeted_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
+    $user, $asof_datetime, $asof_datetime);
+  my @status_id = keys %{$retweeted_top};
+
+  map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
+  #map { print "status_id=$_\n"; } @status_id;
+  my ($count, $list_ref) = twitter_doc(@status_id);
+
+  foreach ( @{$list_ref} ) {
+    my $edocid = $_->{edocid};
+    $_->{retweet_count} = $retweeted_top->{$edocid}->{retweeted_count_sum};
+  }
+  my @sorted_list = sort { $b->{retweet_count}
+                            <=> $a->{retweet_count} } @{$list_ref};
+  return ($count, \@sorted_list);
 }
 
 sub twitter_mentioned_top {
