@@ -50,6 +50,7 @@ my %dispatch = (
   candidate                   => \&election_candidate,
   tw_realtime_list            => \&tw_realtime_list,
   tw_rt_list                  => \&tw_rt_list,
+  debug_twitter               => \&debug_twitter,
 );
 
 my $output = {};
@@ -739,6 +740,41 @@ sub tw_rt_list {
       app2_mysql => (app2_mysql())[0],
     },
   );
+}
+
+
+sub debug_twitter {
+  my @docid = qw(
+paransora|177223546521661440
+kim_whee|177223542868418560
+cbhwa|177223533473177601
+  );
+  my $result = twitter_doc(@docid);
+  my $count = $result->{m}->{pc};
+  my $list_ref = $result->{ds}->{data};
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub twitter_doc {
+  use LWP::UserAgent;
+  use LWP::Simple qw(!head);
+
+  my @list = @_;
+  # http://10.30.134.7:7777/front/search.py?edocid=
+  my $edocid = join(":", @list);
+  my $url = q(http://10.30.134.7:7777/front/search.py?edocid=) . $edocid;
+  my $xml = LWP::Simple::get($url);
+  my $data_ref = XMLin($xml);
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
 }
 
 sub realtime_ddm_dynamic_status {
