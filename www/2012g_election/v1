@@ -52,8 +52,8 @@ my %dispatch = (
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
   realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
   candidate                   => \&election_candidate,
-  tw_realtime_list            => \&tw_realtime_list,
-  tw_rt_list                  => \&tw_rt_list,
+  twitter_realtime            => \&twitter_realtime,
+  most_retweeted              => \&most_retweeted,
   debug_twitter               => \&debug_twitter,
   debug_twitter_profile       => \&debug_twitter_profile,
   debug_twitter_user_timeline => \&debug_twitter_user_timeline,
@@ -517,13 +517,14 @@ LIMIT ?
 }
 
 sub sns_map_detail {
-  my $homo_id = param('homo_id');
-  my $cp_person_id = param('cp_person_id');
+  my $homo_id        = param('homo_id');
+  my $cp_person_id   = param('cp_person_id');
   my $candidate_type = param('candidate') || 'actual';
-  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
-  my $asof_datetime =
+  my $asof           = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime  =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval       = param('interval') || 86400;
 
 # 후보자 정보 추출
   my @mysql_dsn = app2_mysql();
@@ -584,9 +585,9 @@ ORDER BY date desc
   my ($timeline_count, $timeline_ref)
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
   my ($mentioned_count, $mentioned_ref)
-    = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime);
+    = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
   my ($retweeted_count, $retweeted_ref)
-    = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime);
+    = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime, $interval);
 
   $candidate->{twitter_timeline} = $timeline_ref;
   $candidate->{twitter_mentioned} = $mentioned_ref;
@@ -677,7 +678,14 @@ FROM
   );
 }
 
-sub tw_realtime_list {
+sub most_retweeted {
+  my $limit     = param('limit') || 25;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+
   my @tweets;
   for (my $i=0;$i<10;$i++) {
     my %tweet = (
@@ -705,26 +713,48 @@ sub tw_realtime_list {
   );
 }
 
-sub tw_rt_list {
-  my @rts;
-  for (my $i=0;$i<10;$i++) {
-    my %rt = (
-                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
-                  "twitter_id" => "xxxxx",
-                  "permalink" => "twitter.com/xxxxx/28480802",
-                );
+sub twitter_realtime {
+  my $limit     = param('limit') || 100;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+  my $begindate = param('begindate');
 
-    push(@rts, \%rt);
-  }
+  my @mysql_dsn = app1_mysql();
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = qq{
+SELECT word, tw_mentioned_count, `date`, twitter_id FROM
+(
+   SELECT word, sum(mention_count) as tw_mentioned_count, date(pub_date_begin) as `date`
+   FROM $app1_schema.wave_rank_mention_count
+   WHERE date_sub(?, interval ? second) <= pub_date_begin
+     AND pub_date_begin <= ?
+   GROUP BY word 
+   ORDER BY tw_mentioned_count DESC 
+) wc,
+$app2_schema.candidate c
+WHERE wc.word = c.candidate_name
+ORDER BY tw_mentioned_count DESC
+LIMIT ?
+  };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime, $limit);
+  my @twitter_id = ();
+  map { $_->{twitter_id} and push @twitter_id, $_->{twitter_id}; } @{$list};
 
+  #map { print $_->{word},"-", $_->{twitter_id}, "\n"; } @{$list};
+  my $id_list = join(",", @twitter_id);
+  #map { print $_->{word},"-", $_->{twitter_id}, "\n"; } @{$list};
   my $help = {
     "API_name" => "최다 RT 트윗",
     "API_desc" => "많이 RT된 후보자 트윗 최근, 24시간 이내 후보자 트윗 중 가장 많이 RT된 트윗 10건",
   };
 
   return (
-    results => \@rts,
     help => $help,
     debug => {
       app1_mysql => (app1_mysql())[0],
@@ -830,7 +860,7 @@ sub debug_retweeted_top {
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
 
-  my ($count, $list_ref) = twitter_retweeted_top($user, $asof_datetime);
+  my ($count, $list_ref) = twitter_retweeted_top($user, $asof_datetime, "86400");
   return (
     results => $list_ref,
     debug => {
@@ -842,7 +872,7 @@ sub debug_retweeted_top {
 }
 
 sub twitter_retweeted_top {
-  my ($user, $asof_datetime) = @_;
+  my ($user, $asof_datetime, $interval) = @_;
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -854,13 +884,13 @@ SELECT CONCAT(screen_name, '|', id) AS status_id, SUM(rt_count) AS retweeted_cou
 FROM $app2_schema.candidate c
 LEFT OUTER JOIN $app2_schema.rt_count s ON c.twitter_id = s.screen_name
 WHERE c.twitter_id = ?
-  AND date_sub(?, interval 24 hour) <= s.pub_date_begin AND s.pub_date_begin <= ?
+  AND date_sub(?, interval ? second) <= s.pub_date_begin AND s.pub_date_begin <= ?
 GROUP BY s.screen_name, s.id
 ORDER BY retweeted_count_sum DESC
 LIMIT 25
   };
   my $retweeted_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
-    $user, $asof_datetime, $asof_datetime);
+    $user, $asof_datetime, $interval, $asof_datetime);
   my @status_id = keys %{$retweeted_top};
 
   return (0, []) if scalar @status_id < 1;
@@ -885,7 +915,7 @@ sub debug_mentioned_top {
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
 
-  my ($count, $list_ref) = twitter_mentioned_top($user, $asof_datetime);
+  my ($count, $list_ref) = twitter_mentioned_top($user, $asof_datetime, 86400);
   return (
     results => $list_ref,
     debug => {
@@ -897,7 +927,7 @@ sub debug_mentioned_top {
 }
 
 sub twitter_mentioned_top {
-  my ($user, $asof_datetime) = @_;
+  my ($user, $asof_datetime, $interval) = @_;
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -909,13 +939,13 @@ SELECT CONCAT(wr.snsname, '|', wr.status) AS status_id
 FROM $app1_schema.wave_rank_election_v1 wr, $app2_schema.candidate c
 WHERE c.twitter_id = ?
   AND c.candidate_name = wr.word
-  AND DATE_SUB(?, INTERVAL 24 HOUR) <= wr.createat
+  AND DATE_SUB(?, INTERVAL ? SECOND) <= wr.createat
   AND wr.createat < ?
 ORDER BY wr.createat DESC
 LIMIT 25;
   };
   my $mentioned_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
-    $user, $asof_datetime, $asof_datetime);
+    $user, $asof_datetime, $interval, $asof_datetime);
   my @status_id = keys %{$mentioned_top};
 
   return (0, []) if scalar @status_id < 1;
