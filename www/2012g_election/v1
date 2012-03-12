@@ -253,7 +253,7 @@ sub district_list {
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
-  my $interval  = param('interval') || 3600;
+  my $interval  = param('interval') || 86400;
 
   my $app2_dbh = mysql_dbh( app2_mysql() );
 # 격전지별 전체 후보 추출
