@@ -749,9 +749,7 @@ paransora|177223546521661440
 kim_whee|177223542868418560
 cbhwa|177223533473177601
   );
-  my $result = twitter_doc(@docid);
-  my $count = $result->{m}->{pc};
-  my $list_ref = $result->{ds}->{data};
+  my ($count, $list_ref) = twitter_doc(@docid);
   return (
     results => $list_ref,
     debug => {
