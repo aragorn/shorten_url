@@ -51,6 +51,7 @@ my %dispatch = (
   tw_realtime_list            => \&tw_realtime_list,
   tw_rt_list                  => \&tw_rt_list,
   debug_twitter               => \&debug_twitter,
+  debug_twitter_profile       => \&debug_twitter_profile,
 );
 
 my $output = {};
@@ -529,6 +530,10 @@ WHERE cp_person_id = ?
   };
   my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $cp_person_id);
 
+  # add twitter user profile from sns profile collection
+  my ($profile_count, $profile) = twitter_profile($candidate->{twitter_id});
+  $candidate->{tw_profile} = $profile;
+
   $dbh = mysql_dbh(app1_mysql());
 # 최근 6일간 후보자 언급 수 추출
   $sql = qq{
@@ -634,6 +639,8 @@ ORDER BY date desc
     debug => {
       app1_mysql => (app1_mysql())[0],
       app2_mysql => (app2_mysql())[0],
+      twitter_id => $candidate->{twitter_id},
+      profile_count => $profile_count,
     },
   );
 }
@@ -761,7 +768,6 @@ cbhwa|177223533473177601
 }
 
 sub twitter_doc {
-  use LWP::UserAgent;
   use LWP::Simple qw(!head);
 
   my @list = @_;
@@ -772,6 +778,34 @@ sub twitter_doc {
   my $data_ref = XMLin($xml);
   my $count = $data_ref->{m}->{pc};
   my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub debug_twitter_profile {
+  my $user = q(moonriver365);
+  my ($count, $list_ref) = twitter_profile($user);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub twitter_profile {
+  use LWP::Simple qw(!head);
+
+  my ($user) = @_;
+  # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
+  my $url = q(http://10.10.157.23:7777/front/search.py?enc=utf8&output=json&q=) . $user;
+  my $json_string = LWP::Simple::get($url);
+
+  my $data_ref = $json->decode($json_string);
+  my $count = $data_ref->{pageable_count};
+  my $list_ref = $data_ref->{xml_disp};
+
   return ($count, $list_ref);
 }
 
