@@ -828,7 +828,6 @@ sub twitter_user_timeline {
   # http://10.10.134.7:7777/front/search.py?user=moonriver365
   my $url = qq($socialweb_breeze?enc=utf8&user=) . $user . qq(&enddate=$asof);
   #my $url = qq($socialweb_breeze?enc=utf8&user=) . $user;
-  print "debug=$url\n";
   my $xml = LWP::Simple::get($url) or return undef;
   my $data_ref = XMLin($xml);
   my $count = $data_ref->{m}->{pc};
