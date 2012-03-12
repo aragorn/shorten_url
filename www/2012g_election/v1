@@ -58,6 +58,7 @@ my %dispatch = (
   debug_twitter_profile       => \&debug_twitter_profile,
   debug_twitter_user_timeline => \&debug_twitter_user_timeline,
   debug_retweeted_top         => \&debug_retweeted_top,
+  debug_mentioned_top         => \&debug_mentioned_top,
 );
 
 my $output = {};
@@ -583,7 +584,7 @@ ORDER BY date desc
   my ($timeline_count, $timeline_ref)
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
   my ($mentioned_count, $mentioned_ref)
-    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+    = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime);
   my ($retweeted_count, $retweeted_ref)
     = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime);
 
@@ -862,6 +863,8 @@ LIMIT 25
     $user, $asof_datetime, $asof_datetime);
   my @status_id = keys %{$retweeted_top};
 
+  return (0, []) if scalar @status_id < 1;
+
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = twitter_doc(@status_id);
@@ -875,9 +878,52 @@ LIMIT 25
   return ($count, \@sorted_list);
 }
 
+sub debug_mentioned_top {
+  my $user = param('twitter_id') || 'moonriver365';
+  my $asof = param('asof')       || '20120310';
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+
+  my ($count, $list_ref) = twitter_mentioned_top($user, $asof_datetime);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
 sub twitter_mentioned_top {
-  my ($user, $asof) = @_;
-  $asof = substr($asof.("0"x14), 0, 14);
+  my ($user, $asof_datetime) = @_;
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+
+  my $sql = qq{
+SELECT CONCAT(wr.snsname, '|', wr.status) AS status_id
+FROM $app1_schema.wave_rank_election_v1 wr, $app2_schema.candidate c
+WHERE c.twitter_id = ?
+  AND c.candidate_name = wr.word
+  AND DATE_SUB(?, INTERVAL 24 HOUR) <= wr.createat
+  AND wr.createat < ?
+ORDER BY wr.createat DESC
+LIMIT 25;
+  };
+  my $mentioned_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
+    $user, $asof_datetime, $asof_datetime);
+  my @status_id = keys %{$mentioned_top};
+
+  return (0, []) if scalar @status_id < 1;
+
+  #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
+  #map { print "status_id=$_\n"; } @status_id;
+  my ($count, $list_ref) = twitter_doc(@status_id);
+  return ($count, $list_ref);
 
 
 }
