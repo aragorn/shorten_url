@@ -23,6 +23,10 @@ CGI->compile();
 our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 
+#our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
+our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
+our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
+
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
 my ($query, $path, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt");
@@ -52,6 +56,7 @@ my %dispatch = (
   tw_rt_list                  => \&tw_rt_list,
   debug_twitter               => \&debug_twitter,
   debug_twitter_profile       => \&debug_twitter_profile,
+  debug_twitter_user_timeline => \&debug_twitter_user_timeline,
 );
 
 my $output = {};
@@ -573,16 +578,13 @@ ORDER BY date desc
                             ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
 
 # 언급한 글, 새 글, 소문난 리스트 임시
-  my @tweets;
+
+  my ($timeline_count, $timeline_ref)
+    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+
   my @mentions;
   my @rts;
   for (my $i=0;$i<10;$i++) {
-    my %tweet = (
-                  "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
-                  "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
-                  "twitter_id" => "xxxxx",
-                  "permalink" => "twitter.com/xxxxx/28480802",
-                );
     my %mention = (
                   "date" => "2012-02-29 13:00:".(int(rand(49)) + 10),
                   "tweet" => "로렘 입섬 돌로어 시트 아메트, 콘섹테투어 아데피시시 엘리트, 세드 도 에이우스모드 템",
@@ -596,18 +598,13 @@ ORDER BY date desc
                   "permalink" => "twitter.com/xxxxx/28480802",
                 );
 
-    push(@tweets, \%tweet);
     push(@mentions, \%mention);
     push(@rts, \%rt);
   }
-  $candidate->{tw_tweets} = \@tweets;
+  $candidate->{twitter_timeline} = $timeline_ref;
   $candidate->{tw_mentions} = \@mentions;
   $candidate->{tw_rts} = \@rts;
 
-  $candidate->{tw_tweets_count} = int(rand(1000));
-  $candidate->{tw_following_count} = int(rand(10000));
-  $candidate->{tw_followers_count} = int(rand(10000));
- 
   my $help = {
     "API_name" => "SNS 맵 상세",
     "API_desc" => "후보자의 SNS 관련 상세 정보",
@@ -773,7 +770,7 @@ sub twitter_doc {
   my @list = @_;
   # http://10.30.134.7:7777/front/search.py?edocid=
   my $edocid = join(":", @list);
-  my $url = q(http://10.30.134.7:7777/front/search.py?edocid=) . $edocid;
+  my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
   my $xml = LWP::Simple::get($url);
   my $data_ref = XMLin($xml);
   my $count = $data_ref->{m}->{pc};
@@ -799,12 +796,43 @@ sub twitter_profile {
 
   my ($user) = @_;
   # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
-  my $url = q(http://10.10.157.23:7777/front/search.py?enc=utf8&output=json&q=) . $user;
+  my $url = qq($profile_breeze?enc=utf8&output=json&q=) . $user;
   my $json_string = LWP::Simple::get($url);
 
   my $data_ref = $json->decode($json_string);
   my $count = $data_ref->{pageable_count};
   my $list_ref = $data_ref->{xml_disp};
+
+  return ($count, $list_ref);
+}
+
+sub debug_twitter_user_timeline {
+  my $user = param('twitter_id') || q(moonriver365);
+  my $asof = param('asof')       || q(20120309);
+  my ($count, $list_ref) = twitter_user_timeline($user, $asof);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub twitter_user_timeline {
+  use LWP::Simple qw(!head);
+
+  my ($user, $asof) = @_;
+  $asof = substr($asof.("0"x14), 0, 14);
+  # http://10.10.134.7:7777/front/search.py?user=moonriver365
+  my $url = qq($socialweb_breeze?enc=utf8&user=) . $user . qq(&enddate=$asof);
+  #my $url = qq($socialweb_breeze?enc=utf8&user=) . $user;
+  print "debug=$url\n";
+  my $xml = LWP::Simple::get($url) or return undef;
+  my $data_ref = XMLin($xml);
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
 
   return ($count, $list_ref);
 }
