@@ -758,8 +758,8 @@ sub twitter_doc {
   # http://10.30.134.7:7777/front/search.py?edocid=
   my $edocid = join(":", @list);
   my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
-  my $xml = LWP::Simple::get($url);
-  my $data_ref = XMLin($xml);
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  my $data_ref = XMLin($xml) or return (0, []);
   my $count = $data_ref->{m}->{pc};
   my $list_ref = $data_ref->{ds}->{data};
   return ($count, $list_ref);
