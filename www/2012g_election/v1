@@ -74,6 +74,7 @@ decode_utf8_in_complex_data($output);
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
+$output->{published} = strftime("%Y-%m-%d %H:%M:%S", (localtime));
 
 print $json->encode($output)  if $suffix eq ".json";
 print XMLout($output, NoAttr=>1, RootName=>'xml', XMLDecl=>1) if $suffix eq ".xml";
