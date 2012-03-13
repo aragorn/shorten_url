@@ -98,6 +98,8 @@ END
 }
 
 sub stderr_debug_info {
+  return if ( $q->server_port eq "80" and defined $ENV{GATEWAY_INTERFACE} );
+
   my $position = shift;
   my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
   my $elapsed   = tv_interval($T01, $T02);
@@ -392,12 +394,12 @@ ORDER BY date desc
   #print "date_list=", join(",", @date_list), "\n";
 
   foreach my $row ( @{$list} ) {
-# 최근 6일간 후보자 언급 수 추출
+# 최근 11일간 후보자 언급 수 추출
     $sql = qq{
 SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
 FROM $app1_schema.wave_rank_mention_count wc
 WHERE wc.word = ?
-  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND date_sub(?, interval 11 day) <= wc.pub_date_begin
   AND pub_date_begin <= ?
 GROUP BY date(wc.pub_date_begin)
 ORDER BY date desc
@@ -411,13 +413,19 @@ ORDER BY date desc
       $_->{share} = percent($_->{count}, $total_counts->{$date}->{count});
       push @{$row->{tw_shared_history}}, $_;
     }
+
+    use List::Util qw(sum);
+    sub mean { return @_ ? sum(@_)/@_ : 0; }
+    $row->{tw_mentioned_share_avg} =
+       mean( map { $mentions_ref->{$_}->{share} } @date_list );
     $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
     $row->{tw_mentioned_share} = $mentions_ref->{$asof_date}->{share} || 0;
   }
-  my $sorted_list = [
+  my @sorted_list = 
     sort { $b->{tw_mentioned_count}
-       <=> $a->{tw_mentioned_count} } @{$list}
-  ];
+       <=> $a->{tw_mentioned_count} } @{$list};
+
+  my $tuned_list = [ grep { $_->{tw_mentioned_share_avg} > 0 } @sorted_list ];
 
   my $help = {
     "API_name" => "격전지 상세",
@@ -438,7 +446,7 @@ ORDER BY date desc
   };
 
   return (
-    results => $sorted_list,
+    results => $tuned_list,
     help => $help,
     debug => {
       app1_mysql => (app1_mysql())[0],
@@ -1004,11 +1012,14 @@ LIMIT 25;
     $user, $asof_datetime, $interval, $asof_datetime);
   my @status_id = keys %{$mentioned_top};
 
+  stderr_debug_info("[4-1]");
+
   return (0, []) if scalar @status_id < 1;
 
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = twitter_doc(@status_id);
+  stderr_debug_info("[4-2]");
   return ($count, $list_ref);
 
 
