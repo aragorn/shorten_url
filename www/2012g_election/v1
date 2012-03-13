@@ -979,6 +979,11 @@ LIMIT 25
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = twitter_doc(@status_id);
+  $list_ref = [ $list_ref ] if $count == 1;
+
+#print "count=$count, list_ref=$list_ref\n";
+#use Data::Dumper;
+#print Dumper($list_ref), "\n";
 
   foreach ( @{$list_ref} ) {
     my $edocid = $_->{edocid};
