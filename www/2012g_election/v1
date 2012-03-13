@@ -363,9 +363,7 @@ sub district {
 # 특정 격전지 후보 추출
   my $sql = qq{
 SELECT 
-       c.homo_id, c.cp_person_id, c.candidate_name, c.election_symbol,
-       c.cp_party_id_1, c.cp_party_id_2, c.party_name, c.party_short_name,
-       c.twitter_id, c.cp_election_district_id,
+       c.*,
        d.x as wcongnamul_x, d.y as wcongnamul_y
 FROM $app2_schema.candidate c, $app2_schema.district_map_coordinates d
 WHERE c.cp_election_district_id = d.cp_election_district_id
