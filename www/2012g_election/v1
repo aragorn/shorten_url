@@ -41,7 +41,7 @@ $suffix = ".json" unless $suffix;
 $content_type = "application/javascript" if $callback and $suffix eq ".json";
 $content_type = "application/xml"        if $suffix eq ".xml";
 
-print $q->header(-charset=>'utf-8', -type=>$content_type);
+print $q->header(-charset=>'utf-8', -type=>$content_type, -expires=>'+1m');
 print jsonp_header($callback) if $suffix eq ".json";
 
 my %dispatch = (
