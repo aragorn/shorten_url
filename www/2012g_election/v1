@@ -26,6 +26,7 @@ our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 #our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
 our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
 our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
+our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
 
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
@@ -165,6 +166,7 @@ sub mysql_dbh {
 }
 
 ###############################################################################
+
 sub app1_schema {
   my $schema  = "twapp1";
   unless ( $q->server_port eq "80"
@@ -230,7 +232,9 @@ sub realtime_dbh {
   my $dbh = DBI->connect($database, $db_user, $db_pass, {mysql_enable_utf8 => 1});
   return $dbh;
 }
+
 ###############################################################################
+
 sub date_list {
   my ($asof_datetime, $count) = @_;
   use HTTP::Date;
@@ -246,7 +250,9 @@ sub percent {
   my ($count, $total) = @_;
   return sprintf("%.2f", ($total != 0)?(100 * $count / $total):0);
 }
+
 ###############################################################################
+
 sub district_list {
   my $limit     = param('limit') || 15;
   my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
@@ -728,15 +734,15 @@ LIMIT ?
   my @twitter_id = ();
   map { $_->{twitter_id} and push @twitter_id, $_->{twitter_id}; } @{$list};
 
-  #map { print $_->{word},"-", $_->{twitter_id}, "\n"; } @{$list};
-  my $id_list = join(",", @twitter_id);
-  #map { print $_->{word},"-", $_->{twitter_id}, "\n"; } @{$list};
+  my ($count, $list_ref) = twitter_realtime_doc(@twitter_id);
+
   my $help = {
     "API_name" => "최다 RT 트윗",
     "API_desc" => "많이 RT된 후보자 트윗 최근, 24시간 이내 후보자 트윗 중 가장 많이 RT된 트윗 10건",
   };
 
   return (
+    results => $list_ref,
     help => $help,
     debug => {
       app1_mysql => (app1_mysql())[0],
@@ -744,7 +750,6 @@ LIMIT ?
     },
   );
 }
-
 
 sub debug_twitter {
   my @docid = qw(
@@ -763,20 +768,6 @@ cbhwa|177223533473177601
   );
 }
 
-sub twitter_doc {
-  use LWP::Simple qw(!head);
-
-  my @list = @_;
-  # http://10.30.134.7:7777/front/search.py?edocid=
-  my $edocid = join(":", @list);
-  my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
-  my $xml = LWP::Simple::get($url) or return (0, []);
-  my $data_ref = XMLin($xml) or return (0, []);
-  my $count = $data_ref->{m}->{pc};
-  my $list_ref = $data_ref->{ds}->{data};
-  return ($count, $list_ref);
-}
-
 sub debug_twitter_profile {
   my $user = q(moonriver365);
   my ($count, $list_ref) = twitter_profile($user);
@@ -788,21 +779,6 @@ sub debug_twitter_profile {
       count => $count,
     },
   );
-}
-
-sub twitter_profile {
-  use LWP::Simple qw(!head);
-
-  my ($user) = @_;
-  # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
-  my $url = qq($profile_breeze?enc=utf8&output=json&q=) . $user;
-  my $json_string = LWP::Simple::get($url);
-
-  my $data_ref = $json->decode($json_string);
-  my $count = $data_ref->{pageable_count};
-  my $list_ref = $data_ref->{xml_disp};
-
-  return ($count, $list_ref);
 }
 
 sub debug_twitter_user_timeline {
@@ -817,22 +793,6 @@ sub debug_twitter_user_timeline {
       count => $count,
     },
   );
-}
-
-sub twitter_user_timeline {
-  use LWP::Simple qw(!head);
-
-  my ($user, $asof) = @_;
-  $asof = substr($asof.("0"x14), 0, 14);
-  # http://10.10.134.7:7777/front/search.py?user=moonriver365
-  my $url = qq($socialweb_breeze?enc=utf8&user=) . $user . qq(&enddate=$asof);
-  #my $url = qq($socialweb_breeze?enc=utf8&user=) . $user;
-  my $xml = LWP::Simple::get($url) or return undef;
-  my $data_ref = XMLin($xml);
-  my $count = $data_ref->{m}->{pc};
-  my $list_ref = $data_ref->{ds}->{data};
-
-  return ($count, $list_ref);
 }
 
 sub debug_retweeted_top {
@@ -851,6 +811,121 @@ sub debug_retweeted_top {
       count => $count,
     },
   );
+}
+
+sub debug_mentioned_top {
+  my $user = param('twitter_id') || 'moonriver365';
+  my $asof = param('asof')       || '20120310';
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+
+  my ($count, $list_ref) = twitter_mentioned_top($user, $asof_datetime, 86400);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub realtime_ddm_dynamic_status {
+  my $dbh = realtime_dbh();
+  my ($max_id) = $dbh->selectrow_array( q{select max(id) from realtime_article});
+  my ($min_id) = $dbh->selectrow_array( q{select min(id) from realtime_article});
+
+  return ( status => {
+    min_id  => $min_id,
+    min_url => "$full_url/realtime_ddm_dynamic_list?from=$min_id",
+    max_id  => $max_id,
+    max_url => "$full_url/realtime_ddm_dynamic_list?from=$max_id",
+  });
+}
+
+sub realtime_ddm_dynamic_list {
+  my $from     = param('from');
+  my $count    = param('count') || 100;
+
+  my $dbh = realtime_dbh();
+  ($from) = $dbh->selectrow_array(
+              q{select max(id) from realtime_article}
+            ) unless defined $from;
+
+  my $sql = q(select * from realtime_article where id between ? and ?);
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $from, $from+$count-1);
+
+  my $max_id = $from;
+  foreach my $row ( @{$list} ) {
+    $max_id = $row->{id} if $max_id < $row->{id};
+  }
+  my $next = $max_id + 1;
+  return (
+    next_urls      => [ next_urls($q->url(-path_info=>1,-absolute=>1) . "?from=$next&count=$count") ],
+    format_version => "json_breeze_ds_0.1",
+    results           => $list,
+  );
+}
+
+###############################################################################
+
+sub twitter_realtime_doc {
+  use LWP::Simple qw(!head);
+
+  my @list = @_;
+  my $userid = join(",", @list);
+  my $url = qq($realtime_breeze?euc=utf8&n=10&req=all&userid=) . $userid;
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  my $data_ref = XMLin($xml) or return (0, []);
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub twitter_doc {
+  use LWP::Simple qw(!head);
+
+  my @list = @_;
+  # http://10.30.134.7:7777/front/search.py?edocid=
+  my $edocid = join(":", @list);
+  my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  my $data_ref = XMLin($xml) or return (0, []);
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub twitter_profile {
+  use LWP::Simple qw(!head);
+
+  my ($user) = @_;
+  # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
+  my $url = qq($profile_breeze?enc=utf8&output=json&q=) . $user;
+  my $json_string = LWP::Simple::get($url);
+
+  my $data_ref = $json->decode($json_string);
+  my $count = $data_ref->{pageable_count};
+  my $list_ref = $data_ref->{xml_disp};
+
+  return ($count, $list_ref);
+}
+
+sub twitter_user_timeline {
+  use LWP::Simple qw(!head);
+
+  my ($user, $asof) = @_;
+  $asof = substr($asof.("0"x14), 0, 14);
+  # http://10.10.134.7:7777/front/search.py?user=moonriver365
+  my $url = qq($socialweb_breeze?enc=utf8&user=) . $user . qq(&enddate=$asof);
+  #my $url = qq($socialweb_breeze?enc=utf8&user=) . $user;
+  my $xml = LWP::Simple::get($url) or return undef;
+  my $data_ref = XMLin($xml);
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+
+  return ($count, $list_ref);
 }
 
 sub twitter_retweeted_top {
@@ -892,24 +967,6 @@ LIMIT 25
   return ($count, \@sorted_list);
 }
 
-sub debug_mentioned_top {
-  my $user = param('twitter_id') || 'moonriver365';
-  my $asof = param('asof')       || '20120310';
-  my $asof_datetime =
-       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
-
-  my ($count, $list_ref) = twitter_mentioned_top($user, $asof_datetime, 86400);
-  return (
-    results => $list_ref,
-    debug => {
-      app1_mysql => (app1_mysql())[0],
-      app2_mysql => (app2_mysql())[0],
-      count => $count,
-    },
-  );
-}
-
 sub twitter_mentioned_top {
   my ($user, $asof_datetime, $interval) = @_;
 
@@ -940,42 +997,5 @@ LIMIT 25;
   return ($count, $list_ref);
 
 
-}
-
-sub realtime_ddm_dynamic_status {
-  my $dbh = realtime_dbh();
-  my ($max_id) = $dbh->selectrow_array( q{select max(id) from realtime_article});
-  my ($min_id) = $dbh->selectrow_array( q{select min(id) from realtime_article});
-
-  return ( status => {
-    min_id  => $min_id,
-    min_url => "$full_url/realtime_ddm_dynamic_list?from=$min_id",
-    max_id  => $max_id,
-    max_url => "$full_url/realtime_ddm_dynamic_list?from=$max_id",
-  });
-}
-
-sub realtime_ddm_dynamic_list {
-  my $from     = param('from');
-  my $count    = param('count') || 100;
-
-  my $dbh = realtime_dbh();
-  ($from) = $dbh->selectrow_array(
-              q{select max(id) from realtime_article}
-            ) unless defined $from;
-
-  my $sql = q(select * from realtime_article where id between ? and ?);
-  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $from, $from+$count-1);
-
-  my $max_id = $from;
-  foreach my $row ( @{$list} ) {
-    $max_id = $row->{id} if $max_id < $row->{id};
-  }
-  my $next = $max_id + 1;
-  return (
-    next_urls      => [ next_urls($q->url(-path_info=>1,-absolute=>1) . "?from=$next&count=$count") ],
-    format_version => "json_breeze_ds_0.1",
-    results           => $list,
-  );
 }
 
