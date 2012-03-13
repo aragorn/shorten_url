@@ -97,6 +97,14 @@ END
   return "";
 }
 
+sub stderr_debug_info {
+  my $position = shift;
+  my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
+  my $elapsed   = tv_interval($T01, $T02);
+  my $benchmark = timestr(timediff($BM2, $BM1));
+  warn "$position elapsed: $elapsed secs, benchmark: $benchmark\n";
+}
+
 sub debug_info {
   my ($t1, $t2, $t01, $t02) = @_;
   my $elapsed   = tv_interval($t01, $t02);
@@ -532,6 +540,8 @@ sub sns_map_detail {
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
   my $interval       = param('interval') || 86400;
 
+  stderr_debug_info("[1]");
+
 # 후보자 정보 추출
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -543,6 +553,8 @@ FROM candidate
 WHERE cp_person_id = ?
   };
   my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $cp_person_id);
+
+  stderr_debug_info("[2]");
 
   # add twitter user profile from sns profile collection
   my ($profile_count, $profile) = twitter_profile($candidate->{twitter_id});
@@ -567,8 +579,7 @@ ORDER BY date desc
     $asof_datetime, $asof_datetime);
   my @count_history = ();
 
-#use Data::Dumper;
-#print Dumper($mentions_ref), "\n";
+  stderr_debug_info("[3]");
 
 # 6일간 언급, RT, 트윗 수 기록
   my @date_list = date_list($asof_datetime, 10);
@@ -590,12 +601,16 @@ ORDER BY date desc
   # 언급한 글, 새 글, 소문난 리스트
   my ($timeline_count, $timeline_ref)
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
+  stderr_debug_info("[4]");
   my ($mentioned_count, $mentioned_ref)
     = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
+  stderr_debug_info("[5]");
   my ($retweeted_count, $retweeted_ref)
     = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime, $interval);
+  stderr_debug_info("[6]");
   my ($all_retweeted_count, $all_retweeted_ref)
     = twitter_retweeted_top("", $asof_datetime, $interval);
+  stderr_debug_info("[7]");
 
   $candidate->{twitter_timeline} = $timeline_ref;
   $candidate->{twitter_mention} = $mentioned_ref;
