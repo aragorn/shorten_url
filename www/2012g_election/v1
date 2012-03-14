@@ -566,46 +566,51 @@ WHERE cp_person_id = ?
   $candidate->{tw_profile} = $profile;
 
   $dbh = mysql_dbh(app1_mysql());
-# 최근 6일간 후보자 언급 수 추출
+  # 최근 10일간 후보자 언급 수 추출
   $sql = qq{
-SELECT m.`date`, mention_count, retweet_count
-FROM (
-  SELECT DATE(pub_date_begin) AS `date`,
-         SUM(mention_count) AS mention_count
-  FROM $app1_schema.wave_rank_mention_count
-  WHERE word = ?
-    AND DATE_SUB(?, INTERVAL 10 DAY) <= pub_date_begin
-    AND pub_date_begin <= ? GROUP BY `date`) m
-LEFT OUTER JOIN (
-  SELECT DATE(pub_date_begin) AS `date`,
-         SUM(rt_count) AS retweet_count
-  FROM $app2_schema.rt_count
-  WHERE screen_name = ?
-    AND DATE_SUB(?, INTERVAL 10 DAY) <= pub_date_begin
-    AND pub_date_begin <= ? GROUP BY `date`) r
-ON m.date = r.date
-ORDER BY date DESC;
+SELECT DATE(pub_date_begin) AS `date`,
+       SUM(mention_count) AS mention_count
+FROM $app1_schema.wave_rank_mention_count
+WHERE word = ?
+  AND DATE_SUB(?, INTERVAL 10 DAY) <= pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY `date`
   };
   my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
     Encode::decode("utf8", $candidate->{candidate_name}),
     $asof_datetime, $asof_datetime,
+  );
+#use Data::Dumper;
+#print Dumper($mentions_ref), "\n";
+
+  stderr_debug_info("[2-1]");
+  # 최근 10일간 후보자 RT 수 추출
+  $sql = qq{
+SELECT DATE(pub_date_begin) AS `date`,
+       SUM(rt_count) AS retweet_count
+FROM $app2_schema.rt_count
+WHERE screen_name = ?
+  AND DATE_SUB(?, INTERVAL 10 DAY) <= pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY `date`
+  };
+  my $retweets_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
     $candidate->{twitter_id},
     $asof_datetime, $asof_datetime,
   );
-  my @count_history = ();
 
+  my @count_history = ();
   stderr_debug_info("[3]");
 
-# 6일간 언급, RT, 트윗 수 기록
+# 10일간 언급, RT, 트윗 수 기록
   my @date_list = date_list($asof_datetime, 10);
   foreach my $date ( @date_list ) {
-    $_ = $mentions_ref->{$date} || {
+    push @count_history, {
       date => $date,
-      mention_count => 0,
-      retweet_count => 0,
+      mention_count => $mentions_ref->{$date} ? $mentions_ref->{$date}->{mention_count} : 0,
+      retweet_count => $retweets_ref->{$date} ? $retweets_ref->{$date}->{retweet_count} : 0,
       tweet_count => 0,
     };
-    push @count_history, $_;
   }
   $candidate->{tw_count_history} = \@count_history;
 
