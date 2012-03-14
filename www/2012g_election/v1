@@ -120,6 +120,7 @@ sub debug_info {
     json      => JSON->backend,
     encoding_test => "한글이 제대로 보이는지 점검합니다.",
     published => strftime("%Y-%m-%d %H:%M:%S", (localtime)),
+    server_ip => $ENV{"SERVER_NAME"},
   };
 }
 
