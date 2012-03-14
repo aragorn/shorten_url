@@ -13,6 +13,7 @@ use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 use POSIX qw(strftime);
 use File::Basename;
+use List::Util qw(sum);
 
 my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
 CGI->compile();
@@ -262,6 +263,8 @@ sub percent {
   return sprintf("%.2f", ($total != 0)?(100 * $count / $total):0);
 }
 
+sub mean { return @_ ? sum(@_)/@_ : 0; }
+
 ###############################################################################
 
 sub district_list {
@@ -297,8 +300,6 @@ GROUP BY word
   my $counts_ref = $app1_dbh->selectall_hashref($sql, 'word', { Slice => {} },
     $asof_datetime, $interval, $asof_datetime);
 
-  use List::Util qw(sum);
-  sub mean { return @_ ? sum(@_)/@_ : 0; }
 
   # 격전지에 해당하는 모든 후보자의 언급한 글 합산
   foreach ( @{$list} ) {
@@ -316,7 +317,7 @@ GROUP BY word
   foreach my $index ($limit .. $#sorted) {
     delete $sorted[$index];
   }
-  map { print "count=", $_->{tw_mentioned_count}, "\n"; } @sorted;
+  #map { print "count=", $_->{tw_mentioned_count}, "\n"; } @sorted;
 
 # percent 집계
   my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @sorted );
@@ -414,9 +415,6 @@ ORDER BY date desc
       push @{$row->{tw_shared_history}}, $_;
     }
 
-    use List::Util qw(sum);
-    sub mean { return @_ ? sum(@_)/@_ : 0; }
-
     $row->{tw_mentioned_share_avg} =
        mean( map { $mentions_ref->{$_}->{share} } @date_list );
     $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
@@ -469,6 +467,7 @@ sub sns_map {
   my $app1_schema = app1_schema();
   my $app2_schema = app2_schema();
   my $dbh = mysql_dbh(@mysql_dsn);
+=rem
 # 특정일 전체 언급 수 추출
   my $sql = qq{
 SELECT sum(mention_count)
@@ -478,9 +477,10 @@ WHERE date_sub(?, interval ? second) <= pub_date_begin
   };
   my $totalcount = $dbh->selectrow_arrayref($sql, { Slice => {} },
     $asof_datetime, $interval, $asof_datetime);
+=cut
 
 # 특정일에 따른 후보자 언급 수
-  $sql = qq{
+  my $sql = qq{
 SELECT * FROM
 (
    SELECT word, sum(mention_count) as tw_mentioned_count, date(pub_date_begin) as `date`
@@ -498,21 +498,25 @@ LIMIT ?
   my $list = $dbh->selectall_arrayref($sql, { Slice => {} },
     $asof_datetime, $interval, $asof_datetime, $limit);
 
+  my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @{$list} );
+
 # 이름과 매칭되는 후보자 정보 추출
   $dbh = mysql_dbh(app2_mysql());
   foreach my $row ( @{$list} ) {
-    $row->{tw_mentioned_total} = @{$totalcount}[0];
-    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, @{$totalcount}[0]);
+    $row->{tw_mentioned_total} = $total_sum_of_mention_count;
+    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, $total_sum_of_mention_count);
 
     $row->{cp_party_id} = $candidate_type eq 'potential'
                         ? $row->{cp_party_id_1} : $row->{cp_party_id_2};
   }
 
+=rem
 # 후보자 정보 homo_id 가 null이 아닌 경우에만 유용한 결과로 필터링
   my @filtered;
   foreach my $index(0 .. $#{$list}) {
     push(@filtered, ${$list}[$index]) if defined ${$list}[$index]->{homo_id};
   }
+=cut
 
   my $help = {
     "API_name" => "SNS 맵",
