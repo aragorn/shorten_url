@@ -1010,17 +1010,17 @@ sub twitter_mentioned_top {
   my $app2_schema = app2_schema();
 
   my $sql = qq{
-SELECT CONCAT(wr.snsname, '|', wr.status) AS status_id
-FROM $app1_schema.wave_rank_election_v1 wr, $app2_schema.candidate c
-WHERE c.twitter_id = ?
-  AND c.candidate_name = wr.word
-  AND DATE_SUB(?, INTERVAL ? SECOND) <= wr.createat
-  AND wr.createat < ?
-ORDER BY wr.createat DESC
-LIMIT 25;
+SELECT CONCAT(snsname, '|', status) AS status_id
+FROM $app1_schema.wave_rank_election_v1 
+WHERE DATE_SUB(?, INTERVAL ? SECOND) <= createat 
+  AND createat <= ?
+  AND word = (SELECT candidate_name FROM $app2_schema.candidate WHERE twitter_id = ?)
+ORDER BY createat DESC 
+LIMIT 25
   };
   my $mentioned_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
-    $user, $asof_datetime, $interval, $asof_datetime);
+    $asof_datetime, $interval, $asof_datetime,  $user,
+  );
   my @status_id = keys %{$mentioned_top};
 
   stderr_debug_info("[4-1]");
