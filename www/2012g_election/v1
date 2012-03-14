@@ -283,45 +283,45 @@ FROM candidate c, district_map_coordinates d
 WHERE c.cp_election_district_id = d.cp_election_district_id
 GROUP BY cp_election_district_id
   };
-  my $list = $app2_dbh->selectall_arrayref($sql, { Slice => {} });
+  my $list = $app2_dbh->selectall_arrayref($sql, { Slice => {} }, );
 
   my $app1_dbh = mysql_dbh(app1_mysql());
-# 전체 후보자 언급 횟수 추출(default: 1시간)
+# 전체 후보자 언급 횟수 추출
   $sql = q{
-SELECT word, sum(mention_count) as cnt
+SELECT word, sum(mention_count) as mention_count
 FROM wave_rank_mention_count 
 WHERE date_sub(?, interval ? second) <= pub_date_begin
   AND pub_date_begin <= ?
 GROUP BY word
   };
-  my $counts_ref = $app1_dbh->selectall_arrayref($sql, { Slice => {} },
+  my $counts_ref = $app1_dbh->selectall_hashref($sql, 'word', { Slice => {} },
     $asof_datetime, $interval, $asof_datetime);
 
-# 카운트 정보를 저장하기 위한 임시 배열, 전체 카운트 저장
-  my %counts = ();
-  my $total = 0;
-  foreach ( @{$counts_ref} ) {
-    $counts{$_->{word}} = $_->{cnt};
-    $total = $total + $_->{cnt};
-  }
+  use List::Util qw(sum);
+  sub mean { return @_ ? sum(@_)/@_ : 0; }
 
-# 격전지에 해당하는 모든 후보자의 언급한 글 합산
+  # 격전지에 해당하는 모든 후보자의 언급한 글 합산
   foreach ( @{$list} ) {
     $_->{tw_mentioned_count} = 0;
-    foreach my $candidate (split(',', $_->{candidate_name})) {
-      $_->{tw_mentioned_count} = $_->{tw_mentioned_count} + $counts{$candidate} if exists $counts{$candidate}
+    foreach my $name (split(',', $_->{candidate_name})) {
+      $_->{tw_mentioned_count} += $counts_ref->{$name}->{mention_count}
+        if exists $counts_ref->{$name};
     }
-
-    $_->{tw_mentioned_share} = percent($_->{tw_mentioned_count}, $total);
   }
 
 # 언급한 글 순으로 정렬
   my @sorted = sort {$b->{tw_mentioned_count} <=> $a->{tw_mentioned_count}} @{$list};
 
 # limit 에 따른 초과분 삭제
-  foreach my $index(0 .. $#sorted) {
-    delete $sorted[$index] if $index > $limit - 1;
+  foreach my $index ($limit .. $#sorted) {
+    delete $sorted[$index];
   }
+  map { print "count=", $_->{tw_mentioned_count}, "\n"; } @sorted;
+
+# percent 집계
+  my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @sorted );
+  map { $_->{tw_mentioned_share} = 
+          percent($_->{tw_mentioned_count}, $total_sum_of_mention_count); } @sorted;
 
   my $help = {
     "API_name" => "격전지 왼쪽 리스트",
@@ -346,6 +346,7 @@ GROUP BY word
       app2_mysql => (app2_mysql())[0],
       asof => $asof,
       asof_datetime => $asof_datetime,
+      total_sum_of_mention_count => $total_sum_of_mention_count,
     },
   );
 }
@@ -415,6 +416,7 @@ ORDER BY date desc
 
     use List::Util qw(sum);
     sub mean { return @_ ? sum(@_)/@_ : 0; }
+
     $row->{tw_mentioned_share_avg} =
        mean( map { $mentions_ref->{$_}->{share} } @date_list );
     $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
