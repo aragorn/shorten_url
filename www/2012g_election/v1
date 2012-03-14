@@ -74,7 +74,6 @@ decode_utf8_in_complex_data($output);
 
 my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
 $output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
-$output->{published} = strftime("%Y-%m-%d %H:%M:%S", (localtime));
 
 print $json->encode($output)  if $suffix eq ".json";
 print XMLout($output, NoAttr=>1, RootName=>'xml', XMLDecl=>1) if $suffix eq ".xml";
@@ -119,6 +118,7 @@ sub debug_info {
     mod_perl  => "$mod_perl",
     json      => JSON->backend,
     encoding_test => "한글이 제대로 보이는지 점검합니다.",
+    published => strftime("%Y-%m-%d %H:%M:%S", (localtime)),
   };
 }
 
