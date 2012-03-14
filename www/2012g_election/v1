@@ -467,23 +467,14 @@ sub sns_map {
   my $app1_schema = app1_schema();
   my $app2_schema = app2_schema();
   my $dbh = mysql_dbh(@mysql_dsn);
-=rem
-# 특정일 전체 언급 수 추출
-  my $sql = qq{
-SELECT sum(mention_count)
-FROM $app1_schema.wave_rank_mention_count
-WHERE date_sub(?, interval ? second) <= pub_date_begin
-  AND pub_date_begin <= ?
-  };
-  my $totalcount = $dbh->selectrow_arrayref($sql, { Slice => {} },
-    $asof_datetime, $interval, $asof_datetime);
-=cut
 
 # 특정일에 따른 후보자 언급 수
   my $sql = qq{
 SELECT * FROM
 (
-   SELECT word, sum(mention_count) as tw_mentioned_count, date(pub_date_begin) as `date`
+   SELECT word,
+          sum(mention_count) as tw_mentioned_count,
+          date(pub_date_begin) as `date`
    FROM $app1_schema.wave_rank_mention_count
    WHERE date_sub(?, interval ? second) <= pub_date_begin
      AND pub_date_begin <= ?
