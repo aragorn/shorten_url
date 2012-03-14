@@ -568,7 +568,7 @@ WHERE cp_person_id = ?
   $dbh = mysql_dbh(app1_mysql());
   # 최근 10일간 후보자 언급 수 추출
   $sql = qq{
-SELECT DATE(pub_date_begin) AS `date`,
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
        SUM(mention_count) AS mention_count
 FROM $app1_schema.wave_rank_mention_count
 WHERE word = ?
@@ -586,7 +586,7 @@ GROUP BY `date`
   stderr_debug_info("[2-1]");
   # 최근 10일간 후보자 RT 수 추출
   $sql = qq{
-SELECT DATE(pub_date_begin) AS `date`,
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
        SUM(rt_count) AS retweet_count
 FROM $app2_schema.rt_count
 WHERE screen_name = ?
