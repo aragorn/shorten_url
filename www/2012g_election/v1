@@ -931,7 +931,7 @@ sub twitter_profile {
 
   my ($user) = @_;
   # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
-  my $url = qq($profile_breeze?enc=utf8&output=json&q=) . $user;
+  my $url = qq($profile_breeze?enc=utf8&output=json&req=elect&q=) . $user . q( site:twitter);
   my $json_string = LWP::Simple::get($url);
 
   my $data_ref = $json->decode($json_string);
