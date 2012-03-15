@@ -633,6 +633,8 @@ GROUP BY `date`
   stderr_debug_info("[5]");
   my ($retweeted_count, $retweeted_ref)
     = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime, $interval);
+
+
   stderr_debug_info("[6]");
   my ($all_retweeted_count, $all_retweeted_ref)
     = twitter_retweeted_top("", $asof_datetime, $interval);
@@ -980,7 +982,7 @@ sub twitter_retweeted_top {
   my $where_twitter_id = "c.twitter_id = ?";
   $where_twitter_id = q('no_value' != ?) unless $user;
   my $sql = qq{
-SELECT CONCAT(screen_name, '|', id) AS status_id, SUM(rt_count) AS retweeted_count_sum
+SELECT CONCAT(LOWER(screen_name), '|', id) AS status_id, SUM(rt_count) AS retweeted_count_sum
 FROM $app2_schema.candidate c
 LEFT OUTER JOIN $app2_schema.rt_count s ON c.twitter_id = s.screen_name
 WHERE $where_twitter_id 
@@ -995,6 +997,7 @@ LIMIT 25
 
   return (0, []) if scalar @status_id < 1;
 
+#print Dumper(\@status_id), "\n";
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = twitter_doc(@status_id);
