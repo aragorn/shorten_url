@@ -933,7 +933,7 @@ sub twitter_doc {
   # http://10.30.134.7:7777/front/search.py?edocid=
   my $edocid = join(":", @list);
   #my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
-  my $url = qq($socialweb_breeze?enc=utf8&child=y&req=tab&rt=y&n=25&issuelink=n&cluster_page=1&anchor=y&edocid=) . $edocid;
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
   my $xml = LWP::Simple::get($url) or return (0, []);
   my $data_ref = XMLin($xml) or return (0, []);
   my $count = $data_ref->{m}->{pc};
@@ -964,7 +964,7 @@ sub twitter_user_timeline {
   # http://10.10.134.7:7777/front/search.py?user=moonriver365
   # http://10.31.127.168/front/search.py?enc=utf8&child=y&req=tab
   #  &rt=y&n=10&issuelink=n&cluster_page=1&p=1&q=user%3AKang_yongseok&anchor=y&enddate=2012031200000
-  my $url = qq($socialweb_breeze?enc=utf8&child=y&req=tab&rt=y&n=25&issuelink=n&cluster_page=1&anchor=y&enddate=$asof&q=user:) . $user;
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
   my $xml = LWP::Simple::get($url) or return undef;
   my $data_ref = XMLin($xml);
   my $count = $data_ref->{m}->{pc};
