@@ -25,7 +25,8 @@ CGI->compile();
 our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 
-#our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
+our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
+#our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
 our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
 our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
 our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
@@ -485,7 +486,7 @@ SELECT * FROM
    WHERE date_sub(?, interval ? second) <= pub_date_begin
      AND pub_date_begin <= ?
    GROUP BY word 
-   ORDER BY tw_mentioned_count DESC 
+   ORDER BY NULL
 ) wc,
 $app2_schema.candidate
 WHERE wc.word = $app2_schema.candidate.candidate_name
@@ -624,10 +625,11 @@ GROUP BY `date`
                             ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
 
 
+  stderr_debug_info("[4-before user_timeline]");
   # 언급한 글, 새 글, 소문난 리스트
   my ($timeline_count, $timeline_ref)
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
-  stderr_debug_info("[4]");
+  stderr_debug_info("[4-after user_timeline]");
   my ($mentioned_count, $mentioned_ref)
     = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
   stderr_debug_info("[5]");
@@ -765,7 +767,7 @@ SELECT word, tw_mentioned_count, `date`, twitter_id FROM
    WHERE date_sub(?, interval ? second) <= pub_date_begin
      AND pub_date_begin <= ?
    GROUP BY word 
-   ORDER BY tw_mentioned_count DESC 
+   ORDER BY NULL
 ) wc,
 $app2_schema.candidate c
 WHERE wc.word = c.candidate_name
@@ -1041,14 +1043,14 @@ LIMIT 25
   );
   my @status_id = keys %{$mentioned_top};
 
-  stderr_debug_info("[4-1]");
+  stderr_debug_info("[4-1 after mysql query]");
 
   return (0, []) if scalar @status_id < 1;
 
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = twitter_doc(@status_id);
-  stderr_debug_info("[4-2]");
+  stderr_debug_info("[4-2 after breeze query]");
   return ($count, $list_ref);
 
 
