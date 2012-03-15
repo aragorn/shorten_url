@@ -274,7 +274,7 @@ sub mean { return @_ ? sum(@_)/@_ : 0; }
 ###############################################################################
 
 sub district_list {
-  my $limit     = param('limit') || 15;
+  my $limit     = param('limit') || 300;
   my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
