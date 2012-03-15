@@ -14,6 +14,7 @@ use Time::HiRes qw(gettimeofday tv_interval);
 use POSIX qw(strftime);
 use File::Basename;
 use List::Util qw(sum);
+use Data::Dumper;
 
 my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
 CGI->compile();
@@ -42,7 +43,11 @@ $suffix = ".json" unless $suffix;
 $content_type = "application/javascript" if $callback and $suffix eq ".json";
 $content_type = "application/xml"        if $suffix eq ".xml";
 
-print $q->header(-charset=>'utf-8', -type=>$content_type, -expires=>'+1m');
+print $q->header(-charset=>'utf-8',
+  -type=>$content_type,
+  -expires=>'+1m',
+  -cache_control => q(public, s-maxage=120),
+);
 print jsonp_header($callback) if $suffix eq ".json";
 
 my %dispatch = (
@@ -598,6 +603,7 @@ GROUP BY `date`
     $candidate->{twitter_id},
     $asof_datetime, $asof_datetime,
   );
+#print Dumper($retweets_ref), "\n";
 
   my @count_history = ();
   stderr_debug_info("[3]");
