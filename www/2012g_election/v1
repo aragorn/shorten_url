@@ -45,7 +45,7 @@ $content_type = "application/xml"        if $suffix eq ".xml";
 
 print $q->header(-charset=>'utf-8',
   -type=>$content_type,
-  -expires=>'+1m',
+  -expires=>'+3m',
   -cache_control => q(public, s-maxage=120),
 );
 print jsonp_header($callback) if $suffix eq ".json";
