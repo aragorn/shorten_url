@@ -932,7 +932,8 @@ sub twitter_doc {
   my @list = @_;
   # http://10.30.134.7:7777/front/search.py?edocid=
   my $edocid = join(":", @list);
-  my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
+  #my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
+  my $url = qq($socialweb_breeze?enc=utf8&child=y&req=tab&rt=y&n=25&issuelink=n&cluster_page=1&anchor=y&edocid=) . $edocid;
   my $xml = LWP::Simple::get($url) or return (0, []);
   my $data_ref = XMLin($xml) or return (0, []);
   my $count = $data_ref->{m}->{pc};
@@ -961,8 +962,9 @@ sub twitter_user_timeline {
   my ($user, $asof) = @_;
   $asof = substr($asof.("0"x14), 0, 14);
   # http://10.10.134.7:7777/front/search.py?user=moonriver365
-  my $url = qq($socialweb_breeze?enc=utf8&user=) . $user . qq(&enddate=$asof);
-  #my $url = qq($socialweb_breeze?enc=utf8&user=) . $user;
+  # http://10.31.127.168/front/search.py?enc=utf8&child=y&req=tab
+  #  &rt=y&n=10&issuelink=n&cluster_page=1&p=1&q=user%3AKang_yongseok&anchor=y&enddate=2012031200000
+  my $url = qq($socialweb_breeze?enc=utf8&child=y&req=tab&rt=y&n=25&issuelink=n&cluster_page=1&anchor=y&enddate=$asof&q=user:) . $user;
   my $xml = LWP::Simple::get($url) or return undef;
   my $data_ref = XMLin($xml);
   my $count = $data_ref->{m}->{pc};
@@ -984,7 +986,8 @@ sub twitter_retweeted_top {
   my $sql = qq{
 SELECT CONCAT(LOWER(screen_name), '|', id) AS status_id, SUM(rt_count) AS retweeted_count_sum
 FROM $app2_schema.candidate c
-LEFT OUTER JOIN $app2_schema.rt_count s ON c.twitter_id = s.screen_name
+LEFT OUTER JOIN $app2_schema.rt_count s USE INDEX(idx_sn_pdb)
+  ON c.twitter_id = s.screen_name
 WHERE $where_twitter_id 
   AND date_sub(?, interval ? second) <= s.pub_date_begin AND s.pub_date_begin <= ?
 GROUP BY s.screen_name, s.id
