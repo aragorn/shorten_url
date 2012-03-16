@@ -64,6 +64,7 @@ my %dispatch = (
   debug_twitter               => \&debug_twitter,
   debug_twitter_profile       => \&debug_twitter_profile,
   debug_twitter_user_timeline => \&debug_twitter_user_timeline,
+  debug_faster_twitter_user_timeline => \&debug_faster_twitter_user_timeline,
   debug_retweeted_top         => \&debug_retweeted_top,
   debug_mentioned_top         => \&debug_mentioned_top,
 );
@@ -627,7 +628,7 @@ GROUP BY `date`
   stderr_debug_info("[4-before user_timeline]");
   # 언급한 글, 새 글, 소문난 리스트
   my ($timeline_count, $timeline_ref)
-    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+    = faster_twitter_user_timeline($candidate->{twitter_id}, $asof);
   stderr_debug_info("[4-after user_timeline]");
   my ($mentioned_count, $mentioned_ref)
     = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
@@ -826,9 +827,23 @@ sub debug_twitter_profile {
 }
 
 sub debug_twitter_user_timeline {
-  my $user = param('twitter_id') || q(moonriver365);
+  my $user = param('twitter_id') || q(gh_park);
   my $asof = param('asof')       || q(20120309);
   my ($count, $list_ref) = twitter_user_timeline($user, $asof);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub debug_faster_twitter_user_timeline {
+  my $user = param('twitter_id') || q(gh_park);
+  my $asof = param('asof')       || q(20120309);
+  my ($count, $list_ref) = faster_twitter_user_timeline($user, $asof);
   return (
     results => $list_ref,
     debug => {
@@ -927,7 +942,22 @@ sub twitter_realtime_doc {
   return ($count, $list_ref);
 }
 
+sub faster_twitter_realtime_doc {
+  use LWP::Simple qw(!head);
+  use XML::Bare;
+
+  my @list = @_;
+  my $userid = join(",", @list);
+  my $url = qq($realtime_breeze?euc=utf8&n=10&req=all&userid=) . $userid;
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
+  my $count = $data_ref->{r}->{m}->{pc};
+  my $list_ref = $data_ref->{r}->{ds}->{data};
+  return ($count, $list_ref);
+}
+
 sub twitter_doc {
+  #use XML::LibXML;
   use LWP::Simple qw(!head);
 
   my @list = @_;
@@ -936,9 +966,27 @@ sub twitter_doc {
   #my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
   my $xml = LWP::Simple::get($url) or return (0, []);
+  stderr_debug_info("[td-1 after LWP]");
   my $data_ref = XMLin($xml) or return (0, []);
+  stderr_debug_info("[td-2 after XMLin]");
   my $count = $data_ref->{m}->{pc};
   my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub faster_twitter_doc {
+  use LWP::Simple qw(!head);
+  use XML::Bare;
+
+  my @list = @_;
+  my $edocid = join(":", @list);
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  stderr_debug_info("[td-1 after LWP]");
+  my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
+  stderr_debug_info("[td-2 after XML::Bare]");
+  my $count = $data_ref->{r}->{m}->{pc};
+  my $list_ref = $data_ref->{r}->{ds}->{data};
   return ($count, $list_ref);
 }
 
@@ -972,9 +1020,25 @@ sub twitter_user_timeline {
   my $data_ref = XMLin($xml);
   stderr_debug_info("[tut-2 after XMLin]");
   my $count = $data_ref->{m}->{pc};
-  stderr_debug_info("[tut-3 after fetch date->m->pc]");
   my $list_ref = $data_ref->{ds}->{data};
-  stderr_debug_info("[tut-4 after fetch data->ds->data]");
+
+  return ($count, $list_ref);
+}
+
+sub faster_twitter_user_timeline {
+  use LWP::Simple qw(!head);
+  use XML::Bare;
+
+  my ($user, $asof) = @_;
+  $asof = substr($asof.("0"x14), 0, 14);
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
+
+  my $xml = LWP::Simple::get($url) or return undef;
+  stderr_debug_info("[ftut-1 after LWP::Simple::get]");
+  my $data_ref = new XML::Bare(text => $xml)->simple();
+  stderr_debug_info("[ftut-2 after parse()]");
+  my $count = $data_ref->{r}->{m}->{pc};
+  my $list_ref = $data_ref->{r}->{ds};
 
   return ($count, $list_ref);
 }
@@ -1009,7 +1073,7 @@ LIMIT 25
 #print Dumper(\@status_id), "\n";
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
-  my ($count, $list_ref) = twitter_doc(@status_id);
+  my ($count, $list_ref) = faster_twitter_doc(@status_id);
   $list_ref = [ $list_ref ] if $count == 1;
 
 #print "count=$count, list_ref=$list_ref\n";
@@ -1053,10 +1117,9 @@ LIMIT 25
 
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
-  my ($count, $list_ref) = twitter_doc(@status_id);
+  my ($count, $list_ref) = faster_twitter_doc(@status_id);
   stderr_debug_info("[4-2 after breeze query]");
   return ($count, $list_ref);
 
 
 }
-
