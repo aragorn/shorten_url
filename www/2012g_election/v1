@@ -189,7 +189,7 @@ sub app1_schema {
   my $schema  = "twapp1";
   unless ( $q->server_port eq "80"
        and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp1t";
+     $schema  = "twapp1";
   }
   return $schema;
 }
@@ -198,7 +198,7 @@ sub app2_schema {
   my $schema  = "twapp2";
   unless ( $q->server_port eq "80"
        and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp2t";
+     $schema  = "twapp2";
   }
   return $schema;
 }
@@ -215,9 +215,9 @@ sub app1_mysql {
   my $db_pass = "app!@#";
   unless ( $q->server_port eq "80"
        and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp1t";
-     $db_user = "twapp1t";
-     $db_pass = "app123";
+     $schema  = "twapp1";
+     $db_user = "twapp1";
+     $db_pass = "app!@#";
   }
   return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass, {mysql_enable_utf8 => 1});
 }
@@ -234,9 +234,9 @@ sub app2_mysql {
   my $db_pass = "app!@#";
   unless ( $q->server_port eq "80"
        and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp2t";
-     $db_user = "twapp1t";
-     $db_pass = "app123";
+     $schema  = "twapp2";
+     $db_user = "twapp1";
+     $db_pass = "app!@#";
   }
   return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass, {mysql_enable_utf8 => 1});
 }
@@ -966,10 +966,15 @@ sub twitter_user_timeline {
   # http://10.31.127.168/front/search.py?enc=utf8&child=y&req=tab
   #  &rt=y&n=10&issuelink=n&cluster_page=1&p=1&q=user%3AKang_yongseok&anchor=y&enddate=2012031200000
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
+
   my $xml = LWP::Simple::get($url) or return undef;
+  stderr_debug_info("[tut-1 after LWP::Simple::get]");
   my $data_ref = XMLin($xml);
+  stderr_debug_info("[tut-2 after XMLin]");
   my $count = $data_ref->{m}->{pc};
+  stderr_debug_info("[tut-3 after fetch date->m->pc]");
   my $list_ref = $data_ref->{ds}->{data};
+  stderr_debug_info("[tut-4 after fetch data->ds->data]");
 
   return ($count, $list_ref);
 }
