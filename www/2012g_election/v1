@@ -1038,7 +1038,7 @@ sub faster_twitter_user_timeline {
   my $data_ref = new XML::Bare(text => $xml)->simple();
   stderr_debug_info("[ftut-2 after parse()]");
   my $count = $data_ref->{r}->{m}->{pc};
-  my $list_ref = $data_ref->{r}->{ds};
+  my $list_ref = $data_ref->{r}->{ds}->{data};
 
   return ($count, $list_ref);
 }
