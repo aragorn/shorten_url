@@ -8,7 +8,7 @@ FindBin::again();
 use CGI qw(:standard escape escapeHTML -utf8 -oldstyle_urls);
 use Encode;
 use JSON;
-use XML::Simple;
+use XML::Bare;
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 use POSIX qw(strftime);
@@ -24,9 +24,14 @@ CGI->compile();
 
 our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
+our $LOG_LEVEL = 0; # 0-debug, 1-info, 2-warn
+our $MODE_PRODUCTION = ( $q->server_port eq "80" and defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
+our $MODE_TESTING    = ( defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
 
 our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
 #our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
+#our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
+#our $socialweb_breeze = "http://10.10.157.20:8080/api/socialweb"; # cached proxy of search-url-web
 our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
 our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
 
@@ -104,14 +109,19 @@ END
   return "";
 }
 
-sub stderr_debug_info {
-  return if ( $q->server_port eq "80" and defined $ENV{GATEWAY_INTERFACE} );
+sub debug {
+  return if $MODE_PRODUCTION or $MODE_TESTING or $LOG_LEVEL > 0;
+  info(@_);
+}
 
-  my $position = shift;
+sub info {
+  return if $MODE_PRODUCTION or $MODE_TESTING or $LOG_LEVEL > 1;
+
+  my ($message) = @_;
   my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
-  my $elapsed   = tv_interval($T01, $T02);
+  my $elapsed   = sprintf("%1.6f", tv_interval($T01, $T02));
   my $benchmark = timestr(timediff($BM2, $BM1));
-  warn "$position elapsed: $elapsed secs, benchmark: $benchmark\n";
+  warn "$elapsed secs: $message\n";
 }
 
 sub debug_info {
@@ -187,20 +197,14 @@ sub mysql_dbh {
 ###############################################################################
 
 sub app1_schema {
-  my $schema  = "twapp1";
-  unless ( $q->server_port eq "80"
-       and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp1";
-  }
+  my $schema  = "twapp1t";
+  $schema = "twapp1" if $MODE_PRODUCTION;
   return $schema;
 }
 
 sub app2_schema {
-  my $schema  = "twapp2";
-  unless ( $q->server_port eq "80"
-       and defined $ENV{GATEWAY_INTERFACE} ) {
-     $schema  = "twapp2";
-  }
+  my $schema  = "twapp2t";
+  $schema = "twapp2" if $MODE_PRODUCTION;
   return $schema;
 }
 
@@ -211,11 +215,10 @@ sub app1_mysql {
     q(10.10.208.77),
   );
   my $host = $slaves[ int(rand(3)) ];
-  my $schema  = "twapp1";
-  my $db_user = "twapp1";
-  my $db_pass = "app!@#";
-  unless ( $q->server_port eq "80"
-       and defined $ENV{GATEWAY_INTERFACE} ) {
+  my $schema  = "twapp1t";
+  my $db_user = "twapp1t";
+  my $db_pass = "app123";
+  if ( $MODE_PRODUCTION ) {
      $schema  = "twapp1";
      $db_user = "twapp1";
      $db_pass = "app!@#";
@@ -230,11 +233,10 @@ sub app2_mysql {
     q(10.10.208.77),
   );
   my $host = $slaves[ int(rand(3)) ];
-  my $schema  = "twapp2";
-  my $db_user = "twapp1";
-  my $db_pass = "app!@#";
-  unless ( $q->server_port eq "80"
-       and defined $ENV{GATEWAY_INTERFACE} ) {
+  my $schema  = "twapp2t";
+  my $db_user = "twapp1t";
+  my $db_pass = "app123";
+  if ( $MODE_PRODUCTION ) {
      $schema  = "twapp2";
      $db_user = "twapp1";
      $db_pass = "app!@#";
@@ -551,7 +553,7 @@ sub sns_map_detail {
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
   my $interval       = param('interval') || 86400;
 
-  stderr_debug_info("[1]");
+  info("[1]");
 
 # 후보자 정보 추출
   my @mysql_dsn = app2_mysql();
@@ -565,7 +567,7 @@ WHERE cp_person_id = ?
   };
   my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $cp_person_id);
 
-  stderr_debug_info("[2]");
+  info("[2] before twitter_profile()");
 
   # add twitter user profile from sns profile collection
   my ($profile_count, $profile) = twitter_profile($candidate->{twitter_id});
@@ -589,7 +591,7 @@ GROUP BY `date`
 #use Data::Dumper;
 #print Dumper($mentions_ref), "\n";
 
-  stderr_debug_info("[2-1]");
+  info("[2-1] after fetching mention_count during 10 days");
   # 최근 10일간 후보자 RT 수 추출
   $sql = qq{
 SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
@@ -607,7 +609,7 @@ GROUP BY `date`
 #print Dumper($retweets_ref), "\n";
 
   my @count_history = ();
-  stderr_debug_info("[3]");
+  info("[3]");
 
 # 10일간 언급, RT, 트윗 수 기록
   my @date_list = date_list($asof_datetime, 10);
@@ -625,22 +627,22 @@ GROUP BY `date`
                             ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
 
 
-  stderr_debug_info("[4-before user_timeline]");
+  info("[4] before twitter-user_timeline]");
   # 언급한 글, 새 글, 소문난 리스트
   my ($timeline_count, $timeline_ref)
-    = faster_twitter_user_timeline($candidate->{twitter_id}, $asof);
-  stderr_debug_info("[4-after user_timeline]");
+    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+  info("[5] before twitter_mentioned_top");
   my ($mentioned_count, $mentioned_ref)
     = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
-  stderr_debug_info("[5]");
+  info("[6] before twitter_retweeted_top");
   my ($retweeted_count, $retweeted_ref)
     = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime, $interval);
 
 
-  stderr_debug_info("[6]");
+  info("[7] before twitter_retweeted_top of all");
   my ($all_retweeted_count, $all_retweeted_ref)
     = twitter_retweeted_top("", $asof_datetime, $interval);
-  stderr_debug_info("[7]");
+  info("[8]");
 
   $candidate->{twitter_timeline} = $timeline_ref;
   $candidate->{twitter_mention} = $mentioned_ref;
@@ -957,18 +959,19 @@ sub faster_twitter_realtime_doc {
 }
 
 sub twitter_doc {
-  #use XML::LibXML;
   use LWP::Simple qw(!head);
 
   my @list = @_;
   # http://10.30.134.7:7777/front/search.py?edocid=
-  my $edocid = join(":", @list);
+  my $edocid = join(":", sort @list);
   #my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
+  info("[td-1 before LWP, url=$url]");
+
   my $xml = LWP::Simple::get($url) or return (0, []);
-  stderr_debug_info("[td-1 after LWP]");
+  info("[td-2 after LWP]");
   my $data_ref = XMLin($xml) or return (0, []);
-  stderr_debug_info("[td-2 after XMLin]");
+  info("[td-3 after XMLin]");
   my $count = $data_ref->{m}->{pc};
   my $list_ref = $data_ref->{ds}->{data};
   return ($count, $list_ref);
@@ -976,15 +979,15 @@ sub twitter_doc {
 
 sub faster_twitter_doc {
   use LWP::Simple qw(!head);
-  use XML::Bare;
 
   my @list = @_;
   my $edocid = join(":", @list);
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
+  info("[td-1 before LWP] $url");
   my $xml = LWP::Simple::get($url) or return (0, []);
-  stderr_debug_info("[td-1 after LWP]");
+  info("[td-2 after LWP]");
   my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
-  stderr_debug_info("[td-2 after XML::Bare]");
+  info("[td-3 after XML::Bare]");
   my $count = $data_ref->{r}->{m}->{pc};
   my $list_ref = $data_ref->{r}->{ds}->{data};
   return ($count, $list_ref);
@@ -996,16 +999,20 @@ sub twitter_profile {
   my ($user) = @_;
   # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
   my $url = qq($profile_breeze?enc=utf8&output=json&req=elect&q=) . $user . q( site:twitter);
+  info("[pf-1 before LWP] $url");
   my $json_string = LWP::Simple::get($url);
+  info("[pf-2 after-LWP]");
 
   my $data_ref = $json->decode($json_string);
   my $count = $data_ref->{pageable_count};
   my $list_ref = $data_ref->{xml_disp};
+  info("[pf-3 after-JSON::decode]");
 
   return ($count, $list_ref);
 }
 
-sub twitter_user_timeline {
+sub deprecated_twitter_user_timeline {
+  use XML::Simple;
   use LWP::Simple qw(!head);
 
   my ($user, $asof) = @_;
@@ -1014,18 +1021,19 @@ sub twitter_user_timeline {
   # http://10.31.127.168/front/search.py?enc=utf8&child=y&req=tab
   #  &rt=y&n=10&issuelink=n&cluster_page=1&p=1&q=user%3AKang_yongseok&anchor=y&enddate=2012031200000
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
+  info("$url");
 
   my $xml = LWP::Simple::get($url) or return undef;
-  stderr_debug_info("[tut-1 after LWP::Simple::get]");
+  info("[tut-1 after LWP::Simple::get]");
   my $data_ref = XMLin($xml);
-  stderr_debug_info("[tut-2 after XMLin]");
+  info("[tut-2 after XMLin]");
   my $count = $data_ref->{m}->{pc};
   my $list_ref = $data_ref->{ds}->{data};
 
   return ($count, $list_ref);
 }
 
-sub faster_twitter_user_timeline {
+sub twitter_user_timeline {
   use LWP::Simple qw(!head);
   use XML::Bare;
 
@@ -1034,9 +1042,9 @@ sub faster_twitter_user_timeline {
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
 
   my $xml = LWP::Simple::get($url) or return undef;
-  stderr_debug_info("[ftut-1 after LWP::Simple::get]");
+  info("[tut-1 after LWP::Simple::get]");
   my $data_ref = new XML::Bare(text => $xml)->simple();
-  stderr_debug_info("[ftut-2 after parse()]");
+  info("[tut-2 after parse()]");
   my $count = $data_ref->{r}->{m}->{pc};
   my $list_ref = $data_ref->{r}->{ds}->{data};
 
@@ -1111,14 +1119,14 @@ LIMIT 25
   );
   my @status_id = keys %{$mentioned_top};
 
-  stderr_debug_info("[4-1 after mysql query]");
+  info("[4-1 after mysql query]");
 
   return (0, []) if scalar @status_id < 1;
 
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
   my ($count, $list_ref) = faster_twitter_doc(@status_id);
-  stderr_debug_info("[4-2 after breeze query]");
+  info("[4-2 after breeze query]");
   return ($count, $list_ref);
 
 
