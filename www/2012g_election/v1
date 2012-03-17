@@ -32,7 +32,9 @@ our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real servic
 #our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
 #our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
 #our $socialweb_breeze = "http://10.10.157.20:8080/api/socialweb"; # cached proxy of search-url-web
+
 our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
+#our $profile_breeze = "http://10.10.157.20:8080/api/twitter_user"; # cached proxy of search-url-web
 our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
 
 # You should not call CGI::path_info() which does not support
@@ -1038,13 +1040,17 @@ sub twitter_user_timeline {
   use XML::Bare;
 
   my ($user, $asof) = @_;
+  # YYYY MM DD hh mm ss
+  #    4  6  8 10 12
   $asof = substr($asof.("0"x14), 0, 14);
+  $asof = int ($asof / 120) * 120;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
 
+  info("[tut-1 before LWP] $url");
   my $xml = LWP::Simple::get($url) or return undef;
-  info("[tut-1 after LWP::Simple::get]");
+  info("[tut-2 after LWP::Simple::get]");
   my $data_ref = new XML::Bare(text => $xml)->simple();
-  info("[tut-2 after parse()]");
+  info("[tut-3 after parse()]");
   my $count = $data_ref->{r}->{m}->{pc};
   my $list_ref = $data_ref->{r}->{ds}->{data};
 
