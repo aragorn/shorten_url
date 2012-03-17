@@ -28,13 +28,13 @@ our $LOG_LEVEL = 0; # 0-debug, 1-info, 2-warn
 our $MODE_PRODUCTION = ( $q->server_port eq "80" and defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
 our $MODE_TESTING    = ( defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
 
-our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
+#our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
 #our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
-#our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
-#our $socialweb_breeze = "http://10.10.157.20:8080/api/socialweb"; # cached proxy of search-url-web
+our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
+#our $socialweb_breeze = "http://10.10.157.20/api/socialweb"; # cached proxy of search-url-web
 
-our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
-#our $profile_breeze = "http://10.10.157.20:8080/api/twitter_user"; # cached proxy of search-url-web
+#our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
+our $profile_breeze = "http://10.10.157.20:8080/api/twitter_user"; # cached proxy of search-url-web
 our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
 
 # You should not call CGI::path_info() which does not support
@@ -271,6 +271,8 @@ sub date_list {
 
 sub percent {
   my ($count, $total) = @_;
+  $count = 0 unless $count;
+  $total = 0 unless $total;
   return sprintf("%.2f", ($total != 0)?(100 * $count / $total):0);
 }
 
@@ -1048,9 +1050,9 @@ sub twitter_user_timeline {
 
   info("[tut-1 before LWP] $url");
   my $xml = LWP::Simple::get($url) or return undef;
-  info("[tut-2 after LWP::Simple::get]");
+  info("[tut-2 after LWP]");
   my $data_ref = new XML::Bare(text => $xml)->simple();
-  info("[tut-3 after parse()]");
+  info("[tut-3 after XML::Bare->simple()]");
   my $count = $data_ref->{r}->{m}->{pc};
   my $list_ref = $data_ref->{r}->{ds}->{data};
 
