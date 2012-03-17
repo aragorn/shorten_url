@@ -1047,7 +1047,7 @@ sub twitter_user_timeline {
   # YYYY MM DD hh mm ss
   #    4  6  8 10 12
   $asof = substr($asof.("0"x14), 0, 14);
-  $asof = int ($asof / 120) * 120;
+  $asof = int ($asof / 100) * 100;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
 
   info("[tut-1 before LWP] $url");
