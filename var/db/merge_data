@@ -1,0 +1,112 @@
+#!/bin/bash
+
+set -o nounset
+set -o errexit
+
+VERBOSE_MODE=0
+
+function error_handler()
+{
+  local STATUS=${1:-1}
+  [ ${VERBOSE_MODE} == 0 ] && exit ${STATUS}
+  echo "Exits abnormally at line "`caller 0`
+  exit ${STATUS}
+}
+trap "error_handler" ERR
+
+PROGNAME=`basename ${BASH_SOURCE}`
+DRY_RUN_MODE=0
+SEM_CMD=""
+
+function print_usage_and_exit()
+{
+  local STATUS=$1
+  echo "Usage: ${PROGNAME} [-v] [-v] [--dry-run] [-h] [--help]"
+  echo ""
+  echo " Options -"
+  echo "  -v                 enables verbose mode 1"
+  echo "  -v -v              enables verbose mode 2"
+  echo "      --dry-run      show what would have been dumped"
+  echo "  -h, --help         shows this help message"
+  exit ${STATUS:-0}
+}
+
+function check_sem {
+  sem 2>/dev/null || return 1
+  return 0
+}
+
+GETOPT=`getopt -o vh --long dry-run,help -n '${PROGNAME}' -- "$@"`
+if [ $? != 0 ] ; then print_usage_and_exit 1; fi
+
+eval set -- "${GETOPT}"
+
+while true
+do case "$1" in
+     -v)            let VERBOSE_MODE+=1; shift;;
+     --dry-run)     DRY_RUN_MODE=1; shift;;
+     -h|--help)     print_usage_and_exit 0;;
+     --)         shift; break;;
+     *) echo "Internal error!"; exit 1;;
+   esac
+done
+
+if (( VERBOSE_MODE > 2 )); then
+  set -x
+fi
+
+check_sem && SEM_CMD="sem -j+0 -i $$" # "--load +2"
+
+declare -a SORTED_FILES
+for FILE in sorted_000000000 sorted_000500000 sorted_001000000 sorted_001500000
+do
+ # <( COMMANDS ) -- Process Substitution by bash
+ SUBSTITUTION="head -20 ${FILE} | sed '1d' ;"
+ SORTED_FILES=( ${SORTED_FILES[@]-} ${SUBSTITUTION})
+# < <( find /data?/realtime/log -name time_statistical_data_xml_* )
+done
+
+set -x
+
+while [[ ${#SORTED_FILES[@]} > 0 ]]
+do
+  INPUT0=shift
+  INPUT1=shift
+  INPUT2=shift
+  INPUT3=shift
+  INPUT4=shift
+  INPUT5=shift
+  INPUT6=shift
+  INPUT7=shift
+  INPUT8=shift
+  INPUT9=shift
+  echo cat <( ${INPUT0} ) <( ${INPUT1} ) <( ${INPUT2} ) <( ${INPUT3} ) <( ${INPUT4} ) \
+      <( ${INPUT5} ) <( ${INPUT6} ) <( ${INPUT7} ) <( ${INPUT8} ) <( ${INPUT9} ) 
+done
+echo cat -- <( ${SORTED_FILES[@]} )
+#cat -- <(${SORTED_FILES[@]})
+#cat <( head -20 sorted_000000000 | sed '1d' ) <( head -20 sorted_000500000 | sed '1d' ) <( head -20 sorted_001000000 | sed '1d' ) <( head -20 sorted_001500000 | sed '1d' )
+
+exit
+
+test=<<exit
+#unique_000500000 unique_001000000
+#for FILE in unique_*
+  MERGED_FILE=${FILE/#/merged}
+  #set -x
+  TIMESTAMP_ORIG=`stat -c%y ${FILE}`
+  TIMESTAMP_MERGED="undefined"
+  [ -r ${MERGED_FILE} ] && TIMESTAMP_MERGED=`stat -c%y ${MERGED_FILE} 2>/dev/null`
+  [ "x${TIMESTAMP_ORIG}" == "x${TIMESTAMP_MERGED}" ] && continue
+
+  set -x
+  #sed '1q' < ${FILE} > ${MERGED_FILE}
+  echo "time sed '1d' < ${FILE} | sort -S 200M -k6 -t'	' -s >> ${MERGED_FILE}"
+  time sort -S 200M -k6 -t'	' -s  >> ${MERGED_FILE}"
+  #touch -d "${TIMESTAMP_ORIG}" ${MERGED_FILE}
+  set +x
+done
+
+exit
+
+1;
