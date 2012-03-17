@@ -30,11 +30,12 @@ our $MODE_TESTING    = ( defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
 
 #our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
 #our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
-our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
-#our $socialweb_breeze = "http://10.10.157.20/api/socialweb"; # cached proxy of search-url-web
+#our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
+our $socialweb_breeze = "http://10.10.157.20/api/socialweb"; # cached proxy of search-url-web
 
 #our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
-our $profile_breeze = "http://10.10.157.20:8080/api/twitter_user"; # cached proxy of search-url-web
+our $profile_breeze = "http://10.10.157.20/api/twitter_user"; # cached proxy of search-url-web
+
 our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
 
 # You should not call CGI::path_info() which does not support
