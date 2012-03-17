@@ -1029,7 +1029,7 @@ sub deprecated_twitter_user_timeline {
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
   info("$url");
 
-  my $xml = LWP::Simple::get($url) or return undef;
+  my $xml = LWP::Simple::get($url) or return (0, []);
   info("[tut-1 after LWP::Simple::get]");
   my $data_ref = XMLin($xml);
   info("[tut-2 after XMLin]");
@@ -1051,7 +1051,7 @@ sub twitter_user_timeline {
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
 
   info("[tut-1 before LWP] $url");
-  my $xml = LWP::Simple::get($url) or return undef;
+  my $xml = LWP::Simple::get($url) or return (0, []);
   info("[tut-2 after LWP]");
   my $data_ref = new XML::Bare(text => $xml)->simple();
   info("[tut-3 after XML::Bare->simple()]");
