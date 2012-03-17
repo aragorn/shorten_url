@@ -638,7 +638,8 @@ GROUP BY `date`
     = twitter_user_timeline($candidate->{twitter_id}, $asof);
   info("[5] before twitter_mentioned_top");
   my ($mentioned_count, $mentioned_ref)
-    = twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
+    = ( 0, [] );
+    #= twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
   info("[6] before twitter_retweeted_top");
   my ($retweeted_count, $retweeted_ref)
     = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime, $interval);
