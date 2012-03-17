@@ -958,7 +958,7 @@ sub faster_twitter_realtime_doc {
   return ($count, $list_ref);
 }
 
-sub twitter_doc {
+sub deprecated_twitter_doc {
   use LWP::Simple qw(!head);
 
   my @list = @_;
@@ -977,7 +977,7 @@ sub twitter_doc {
   return ($count, $list_ref);
 }
 
-sub faster_twitter_doc {
+sub twitter_doc {
   use LWP::Simple qw(!head);
 
   my @list = @_;
@@ -1081,7 +1081,7 @@ LIMIT 25
 #print Dumper(\@status_id), "\n";
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
-  my ($count, $list_ref) = faster_twitter_doc(@status_id);
+  my ($count, $list_ref) = twitter_doc(@status_id);
   $list_ref = [ $list_ref ] if $count == 1;
 
 #print "count=$count, list_ref=$list_ref\n";
@@ -1119,14 +1119,14 @@ LIMIT 25
   );
   my @status_id = keys %{$mentioned_top};
 
-  info("[4-1 after mysql query]");
+  info("[mt] after mysql query]");
 
   return (0, []) if scalar @status_id < 1;
 
   #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
   #map { print "status_id=$_\n"; } @status_id;
-  my ($count, $list_ref) = faster_twitter_doc(@status_id);
-  info("[4-2 after breeze query]");
+  my ($count, $list_ref) = twitter_doc(@status_id);
+  info("[mt] after breeze query]");
   return ($count, $list_ref);
 
 
