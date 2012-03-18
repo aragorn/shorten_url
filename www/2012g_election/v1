@@ -1069,16 +1069,17 @@ sub twitter_retweeted_top {
   my $app1_schema = app1_schema();
   my $app2_schema = app2_schema();
 
-  my $where_twitter_id = "c.twitter_id = ?";
+  my $where_twitter_id = "rc.screen_name = ?";
   $where_twitter_id = q('no_value' != ?) unless $user;
   my $sql = qq{
 SELECT CONCAT(LOWER(screen_name), '|', id) AS status_id, SUM(rt_count) AS retweeted_count_sum
-FROM $app2_schema.candidate c
-LEFT OUTER JOIN $app2_schema.rt_count s USE INDEX(idx_sn_pdb)
-  ON c.twitter_id = s.screen_name
-WHERE date_sub(?, interval ? second) <= s.pub_date_begin AND s.pub_date_begin <= ?
-  AND $where_twitter_id 
-GROUP BY s.screen_name, s.id
+FROM $app2_schema.rt_count rc, $app2_schema.time_20min t, $app2_schema.candidate c
+WHERE rc.pub_date_begin = t.each_time
+  AND date_sub(?, interval ? second) <= t.each_time
+  AND t.each_time <= ?
+  AND rc.screen_name = c.twitter_id
+  AND $where_twitter_id
+GROUP BY rc.id
 ORDER BY retweeted_count_sum DESC
 LIMIT 25
   };
