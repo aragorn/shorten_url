@@ -976,7 +976,7 @@ sub deprecated_twitter_doc {
   my $edocid = join(":", sort @list);
   #my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
-  info("[td-1 before LWP, url=$url]");
+  debug("[td-1 before LWP, url=$url]");
 
   my $xml = LWP::Simple::get($url) or return (0, []);
   info("[td-2 after LWP]");
@@ -993,7 +993,7 @@ sub twitter_doc {
   my @list = @_;
   my $edocid = join(":", @list);
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
-  info("[td-1 before LWP] $url");
+  debug("[td-1 before LWP] $url");
   my $xml = LWP::Simple::get($url) or return (0, []);
   info("[td-2 after LWP]");
   my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
@@ -1009,7 +1009,7 @@ sub twitter_profile {
   my ($user) = @_;
   # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
   my $url = qq($profile_breeze?enc=utf8&output=json&req=elect&q=) . $user . q( site:twitter);
-  info("[pf-1 before LWP] $url");
+  debug("[pf-1 before LWP] $url");
   my $json_string = LWP::Simple::get($url);
   info("[pf-2 after-LWP]");
 
@@ -1031,7 +1031,7 @@ sub deprecated_twitter_user_timeline {
   # http://10.31.127.168/front/search.py?enc=utf8&child=y&req=tab
   #  &rt=y&n=10&issuelink=n&cluster_page=1&p=1&q=user%3AKang_yongseok&anchor=y&enddate=2012031200000
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
-  info("$url");
+  debug("$url");
 
   my $xml = LWP::Simple::get($url) or return (0, []);
   info("[tut-1 after LWP::Simple::get]");
@@ -1050,7 +1050,7 @@ sub twitter_user_timeline {
   my ($user, $asof) = @_;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
 
-  info("[tut-1 before LWP] $url");
+  debug("[tut-1 before LWP] $url");
   my $xml = LWP::Simple::get($url) or return (0, []);
   info("[tut-2 after LWP]");
   my $data_ref = new XML::Bare(text => $xml)->simple();
@@ -1083,7 +1083,7 @@ GROUP BY rc.id
 ORDER BY retweeted_count_sum DESC
 LIMIT 25
   };
-  info("[rt-1] $sql");
+  debug("[rt-1] $sql");
   my $retweeted_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
     $asof_datetime, $interval, $asof_datetime, $user);
   info("[rt-2] after selectall_hashref");
