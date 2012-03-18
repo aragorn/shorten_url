@@ -553,9 +553,13 @@ sub sns_map_detail {
   my $cp_person_id   = param('cp_person_id');
   my $candidate_type = param('candidate') || 'actual';
   my $asof           = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  # YYYY MM DD hh mm ss
+  #    4  6  8 10 12
+  $asof = substr($asof.("0"x14), 0, 14);
+  my $asof_rounded   = int ($asof / 100) * 100;
   my $asof_datetime  =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+               unpack("A4A2A2A2A2A2", $asof_rounded.("0"x12)));
   my $interval       = param('interval') || 86400;
 
   info("[1]");
@@ -635,7 +639,7 @@ GROUP BY `date`
   info("[4] before twitter-user_timeline]");
   # 언급한 글, 새 글, 소문난 리스트
   my ($timeline_count, $timeline_ref)
-    = twitter_user_timeline($candidate->{twitter_id}, $asof);
+    = twitter_user_timeline($candidate->{twitter_id}, $asof_rounded);
   info("[5] before twitter_mentioned_top");
   my ($mentioned_count, $mentioned_ref)
     = ( 0, [] );
@@ -1044,10 +1048,6 @@ sub twitter_user_timeline {
   use XML::Bare;
 
   my ($user, $asof) = @_;
-  # YYYY MM DD hh mm ss
-  #    4  6  8 10 12
-  $asof = substr($asof.("0"x14), 0, 14);
-  $asof = int ($asof / 100) * 100;
   my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
 
   info("[tut-1 before LWP] $url");
@@ -1076,14 +1076,16 @@ SELECT CONCAT(LOWER(screen_name), '|', id) AS status_id, SUM(rt_count) AS retwee
 FROM $app2_schema.candidate c
 LEFT OUTER JOIN $app2_schema.rt_count s USE INDEX(idx_sn_pdb)
   ON c.twitter_id = s.screen_name
-WHERE $where_twitter_id 
-  AND date_sub(?, interval ? second) <= s.pub_date_begin AND s.pub_date_begin <= ?
+WHERE date_sub(?, interval ? second) <= s.pub_date_begin AND s.pub_date_begin <= ?
+  AND $where_twitter_id 
 GROUP BY s.screen_name, s.id
 ORDER BY retweeted_count_sum DESC
 LIMIT 25
   };
+  info("[rt-1] $sql");
   my $retweeted_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
-    $user, $asof_datetime, $interval, $asof_datetime);
+    $asof_datetime, $interval, $asof_datetime, $user);
+  info("[rt-2] after selectall_hashref");
   my @status_id = keys %{$retweeted_top};
 
   return (0, []) if scalar @status_id < 1;
