@@ -1,0 +1,1146 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+FindBin::again();
+#use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
+use CGI qw(:standard escape escapeHTML -utf8 -oldstyle_urls);
+use Encode;
+use JSON;
+use XML::Bare;
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+use POSIX qw(strftime);
+use File::Basename;
+use List::Util qw(sum);
+use Data::Dumper;
+
+my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
+CGI->compile();
+
+# This line should be commented out if output data is encoded properly.
+#binmode STDOUT, ":encoding(UTF-8)";
+
+our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
+our $LOG_LEVEL = 0; # 0-debug, 1-info, 2-warn
+our $MODE_PRODUCTION = ( $q->server_port eq "80" and defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
+our $MODE_TESTING    = ( defined $ENV{GATEWAY_INTERFACE} ) ? 1 : 0;
+
+#our $socialweb_breeze = "http://10.30.134.7:7777/front/search.py"; # real service
+#our $socialweb_breeze = "http://10.31.127.168/front/search.py"; # dev by soohong
+#our $socialweb_breeze = "http://110.45.208.13:8080/api/socialweb"; # cached proxy of search-url-web1
+our $socialweb_breeze = "http://10.10.157.20/api/socialweb"; # cached proxy of search-url-web
+
+#our $profile_breeze = "http://10.10.157.23:7777/front/search.py"; # real service
+our $profile_breeze = "http://10.10.157.20/api/twitter_user"; # cached proxy of search-url-web
+
+our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtime service
+
+# You should not call CGI::path_info() which does not support
+# debugging mode from cmdline input.
+my ($query, $path, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt");
+my $from     = param('from')  || 0;
+my $count    = param('count') || 100;
+my $callback = param('callback');
+my $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
+my $full_url = $q->url(-full=>1);
+
+$suffix = ".json" unless $suffix;
+$content_type = "application/javascript" if $callback and $suffix eq ".json";
+$content_type = "application/xml"        if $suffix eq ".xml";
+
+print $q->header(-charset=>'utf-8',
+  -type=>$content_type,
+  -expires=>'+3m',
+  -cache_control => q(public, s-maxage=120),
+);
+print jsonp_header($callback) if $suffix eq ".json";
+
+my %dispatch = (
+  index                       => \&handler_index,
+  district_list               => \&district_list,
+  district                    => \&district,
+  sns_map                     => \&sns_map,
+  sns_map_detail              => \&sns_map_detail,
+  realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
+  realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
+  candidate                   => \&election_candidate,
+  twitter_realtime            => \&twitter_realtime,
+  most_retweeted              => \&most_retweeted,
+  debug_twitter               => \&debug_twitter,
+  debug_twitter_profile       => \&debug_twitter_profile,
+  debug_twitter_user_timeline => \&debug_twitter_user_timeline,
+  debug_faster_twitter_user_timeline => \&debug_faster_twitter_user_timeline,
+  debug_retweeted_top         => \&debug_retweeted_top,
+  debug_mentioned_top         => \&debug_mentioned_top,
+);
+
+my $output = {};
+if ( defined $dispatch{$query} ) {
+  my %result = &{$dispatch{$query}};
+  map { $output->{$_} = $result{$_}; } keys %result;
+} else {
+  $output->{hello} = "world!";
+}
+
+decode_utf8_in_complex_data($output);
+
+my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
+$output->{debug_info} = debug_info($BM1, $BM2, $T01, $T02);
+
+print $json->encode($output)  if $suffix eq ".json";
+print XMLout($output, NoAttr=>1, RootName=>'xml', XMLDecl=>1) if $suffix eq ".xml";
+print jsonp_footer($callback) if $suffix eq ".json";
+
+1;
+
+sub jsonp_header {
+  my ($callback) = @_;
+  return <<END if $callback;
+if (typeof $callback === "function") $callback(
+END
+  return "";
+}
+
+sub jsonp_footer {
+  my ($callback) = @_;
+  return <<END if $callback;
+);
+END
+  return "";
+}
+
+sub debug {
+  return if $MODE_PRODUCTION or $MODE_TESTING or $LOG_LEVEL > 0;
+  info(@_);
+}
+
+sub info {
+  return if $MODE_PRODUCTION or $MODE_TESTING or $LOG_LEVEL > 1;
+
+  my ($message) = @_;
+  my ($BM2, $T02) = (new Benchmark, [gettimeofday]);
+  my $elapsed   = sprintf("%1.6f", tv_interval($T01, $T02));
+  my $benchmark = timestr(timediff($BM2, $BM1));
+  warn "$elapsed secs: $message\n";
+}
+
+sub debug_info {
+  my ($t1, $t2, $t01, $t02) = @_;
+  my $elapsed   = tv_interval($t01, $t02);
+  my $benchmark = timestr(timediff($t2, $t1));
+  my $mod_perl  = $ENV{MOD_PERL} || "";
+  return { 
+    elapsed   => "$elapsed secs",
+    benchmark => "$benchmark",
+    mod_perl  => "$mod_perl",
+    json      => JSON->backend,
+    encoding_test => "한글이 제대로 보이는지 점검합니다.",
+    published => strftime("%Y-%m-%d %H:%M:%S", (localtime)),
+    server_ip => $ENV{"SERVER_NAME"},
+  };
+}
+
+sub next_urls {
+  my ($uri) = @_;
+  return map { "$_$uri" } qw(
+        http://search-twitter-app1:3080
+        http://search-twitter-app2:3080
+        http://search-twitter-app3:3080
+    );
+}
+
+sub decode_utf8_in_complex_data {
+  my ($var) = @_;
+  if ( ref $var eq "HASH" ) {
+    foreach my $key ( keys %{$var} ) {
+      next unless defined $var->{$key};
+      if ( ref $var->{$key} ) {
+        decode_utf8_in_complex_data($var->{$key});
+      } else {
+        eval {
+          utf8::is_utf8($var->{$key})
+            or $var->{$key}
+            = Encode::decode("utf8", $var->{$key});
+        };
+        warn "\$var->{$key} has invalid character." if $@;
+      }
+    }
+  } elsif ( ref $var eq "ARRAY" ) {
+    for ( my $i = 0; $i <= $#{$var}; $i++ ) {
+      next unless defined ${$var}[$i];
+      if ( ref ${$var}[$i] ) {
+        decode_utf8_in_complex_data(${$var}[$i]);
+      } else {
+        eval {
+          utf8::is_utf8(${$var}[$i])
+            or ${$var}[$i] = Encode::decode("utf8", ${$var}[$i]);
+        };
+        warn "\$var[$i] has invalid character." if $@;
+      }
+    }
+  } else {
+    ; # do nothing
+  }
+  return $var;
+}
+
+sub handler_index {
+  return ( index => { map { $_ => "$full_url/$_" } sort keys %dispatch } );
+}
+
+sub mysql_dbh {
+  use DBI;
+  my $dbh = DBI->connect(@_);
+  return $dbh;
+}
+
+###############################################################################
+
+sub app1_schema {
+  my $schema  = "twapp1t";
+  $schema = "twapp1" if $MODE_PRODUCTION;
+  return $schema;
+}
+
+sub app2_schema {
+  my $schema  = "twapp2t";
+  $schema = "twapp2" if $MODE_PRODUCTION;
+  return $schema;
+}
+
+sub app1_mysql {
+  my @slaves = (
+    q(10.10.208.21),
+    q(10.10.208.31),
+    q(10.10.208.77),
+  );
+  my $host = $slaves[ int(rand(3)) ];
+  my $schema  = "twapp1t";
+  my $db_user = "twapp1t";
+  my $db_pass = "app123";
+  if ( $MODE_PRODUCTION ) {
+     $schema  = "twapp1";
+     $db_user = "twapp1";
+     $db_pass = "app!@#";
+  }
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass, {mysql_enable_utf8 => 1});
+}
+
+sub app2_mysql {
+  my @slaves = (
+    q(10.10.208.21),
+    q(10.10.208.31),
+    q(10.10.208.77),
+  );
+  my $host = $slaves[ int(rand(3)) ];
+  my $schema  = "twapp2t";
+  my $db_user = "twapp1t";
+  my $db_pass = "app123";
+  if ( $MODE_PRODUCTION ) {
+     $schema  = "twapp2";
+     $db_user = "twapp1";
+     $db_pass = "app!@#";
+  }
+  return (qq(dbi:mysql:database=$schema;host=$host), $db_user, $db_pass, {mysql_enable_utf8 => 1});
+}
+
+sub realtime_dbh {
+  use DBI;
+  my $database = q(dbi:mysql:database=realtime;host=10.30.143.73);
+  my $db_user = q(cdwuser);
+  my $db_pass = q(cdwuserdb);
+
+  my $dbh = DBI->connect($database, $db_user, $db_pass, {mysql_enable_utf8 => 1});
+  return $dbh;
+}
+
+###############################################################################
+
+sub date_list {
+  my ($asof_datetime, $count) = @_;
+  use HTTP::Date;
+  my $epoch = str2time($asof_datetime);
+  my @list;
+  foreach ( 0..($count-1) ) {
+    push @list, strftime("%Y-%m-%d", localtime($epoch - $_ * 86400));
+  }
+  return @list;
+}
+
+sub percent {
+  my ($count, $total) = @_;
+  $count = 0 unless $count;
+  $total = 0 unless $total;
+  return sprintf("%.2f", ($total != 0)?(100 * $count / $total):0);
+}
+
+sub mean { return @_ ? sum(@_)/@_ : 0; }
+
+###############################################################################
+
+sub district_list {
+  my $limit     = param('limit') || 300;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+
+  my $app2_dbh = mysql_dbh( app2_mysql() );
+# 격전지별 전체 후보 추출
+  my $sql = q{
+SELECT 
+    c.sido_cd, c.sido_name, c.sido_short_name, c.cp_election_district_id, 
+    c.election_district_short_name, group_concat(c.candidate_name) as candidate_name,
+    d.x as wcongnamul_x, d.y as wcongnamul_y
+FROM candidate c, district_map_coordinates d
+WHERE c.cp_election_district_id = d.cp_election_district_id
+GROUP BY cp_election_district_id
+  };
+  my $list = $app2_dbh->selectall_arrayref($sql, { Slice => {} }, );
+
+  my $app1_dbh = mysql_dbh(app1_mysql());
+# 전체 후보자 언급 횟수 추출
+  $sql = q{
+SELECT word, sum(mention_count) as mention_count
+FROM wave_rank_mention_count 
+WHERE date_sub(?, interval ? second) <= pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY word
+  };
+  my $counts_ref = $app1_dbh->selectall_hashref($sql, 'word', { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime);
+
+
+  # 격전지에 해당하는 모든 후보자의 언급한 글 합산
+  foreach ( @{$list} ) {
+    $_->{tw_mentioned_count} = 0;
+    foreach my $name (split(',', $_->{candidate_name})) {
+      $_->{tw_mentioned_count} += $counts_ref->{$name}->{mention_count}
+        if exists $counts_ref->{$name};
+    }
+  }
+
+# 언급한 글 순으로 정렬
+  my @sorted = sort {$b->{tw_mentioned_count} <=> $a->{tw_mentioned_count}} @{$list};
+
+# limit 에 따른 초과분 삭제
+  foreach my $index ($limit .. $#sorted) {
+    delete $sorted[$index];
+  }
+  #map { print "count=", $_->{tw_mentioned_count}, "\n"; } @sorted;
+
+# percent 집계
+  my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @sorted );
+  map { $_->{tw_mentioned_share} = 
+          percent($_->{tw_mentioned_count}, $total_sum_of_mention_count); } @sorted;
+
+  my $help = {
+    "API_name" => "격전지 왼쪽 리스트",
+    "API_desc" => "이 시각 SNS 격전지에서 사용, 기본 15개",
+    sido_cd => "특별/광역/도 코드",
+    sido_name => "특별/광역/도 이름",
+    sido_short_name => "특별/광역/도 이름의 약칭",
+    cp_election_district_id => "CP_선거구ID",
+    election_district_name => "선거구 이름",
+    election_district_short_name => "선거구 이름의 약칭",
+    tw_mentioned_count => "트위터에서 이름이 언급된 횟수",
+    tw_mentioned_share => "트위터에서 이름이 언급된 점유율(%)",
+    wcongnamul_x => "지도 좌표",
+    wcongnamul_y => "지도 좌표",
+  };
+
+  return (
+    results => \@sorted,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      asof => $asof,
+      asof_datetime => $asof_datetime,
+      total_sum_of_mention_count => $total_sum_of_mention_count,
+    },
+  );
+}
+
+sub district {
+  my $id = param('id');
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+# 특정 격전지 후보 추출
+  my $sql = qq{
+SELECT 
+       c.*,
+       d.x as wcongnamul_x, d.y as wcongnamul_y
+FROM $app2_schema.candidate c, $app2_schema.district_map_coordinates d
+WHERE c.cp_election_district_id = d.cp_election_district_id
+AND c.cp_election_district_id = ?
+  };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $id);
+  
+  $dbh = mysql_dbh(app1_mysql());
+
+# 특정 격전지의 기준일 대비 과거 10일간, 각 후보자들의 언급횟수 총합
+  $sql = qq{
+SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
+FROM $app1_schema.wave_rank_mention_count wc, $app2_schema.candidate c
+WHERE c.cp_election_district_id = ?
+  AND c.candidate_name = wc.word
+  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY date(wc.pub_date_begin)
+ORDER BY date desc
+  };
+  my $total_counts = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+    $id, $asof_datetime, $asof_datetime);
+
+  my @date_list = date_list($asof_datetime, 10);
+  my $asof_date = $date_list[0];
+  #print "date_list=", join(",", @date_list), "\n";
+
+  foreach my $row ( @{$list} ) {
+# 최근 11일간 후보자 언급 수 추출
+    $sql = qq{
+SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
+FROM $app1_schema.wave_rank_mention_count wc
+WHERE wc.word = ?
+  AND date_sub(?, interval 11 day) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY date(wc.pub_date_begin)
+ORDER BY date desc
+    };
+    my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+      Encode::decode("utf8",$row->{candidate_name}),
+      $asof_datetime, $asof_datetime);
+    $row->{tw_shared_history} = [];
+    foreach my $date ( @date_list ) { # 점유율 계산
+      $_ = $mentions_ref->{$date} || { date => $date, count => 0 };
+      $_->{share} = percent($_->{count}, $total_counts->{$date}->{count});
+      push @{$row->{tw_shared_history}}, $_;
+    }
+
+    $row->{tw_mentioned_share_avg} =
+       mean( map { $mentions_ref->{$_}->{share} } @date_list );
+    $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
+    $row->{tw_mentioned_share} = $mentions_ref->{$asof_date}->{share} || 0;
+  }
+  my @sorted_list = 
+    sort { $b->{tw_mentioned_count}
+       <=> $a->{tw_mentioned_count} } @{$list};
+
+  my $tuned_list = [ grep { $_->{tw_mentioned_share_avg} > 0 } @sorted_list ];
+
+  my $help = {
+    "API_name" => "격전지 상세",
+    "API_desc" => "",
+    nownum  => "순위",
+    homo_id => "통합검색 인물ID",
+    cp_person_id => "CP 인물ID",
+    candidate_name => "후보자 이름",
+    election_symbol => "기호",
+    cp_party_id_1 => "CP 정당ID",
+    cp_party_id_2 => "CP 정당ID",
+    party_name => "정당이름",
+    party_short_name => "정당이름 약칭",
+    twitter_id => "트위터ID",
+    tw_shared_history => "최근 6일간 점유율 히스토리(%)",
+    wcongnamul_x => "지도 좌표",
+    wcongnamul_y => "지도 좌표",
+  };
+
+  return (
+    results => $tuned_list,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
+  );
+}
+
+sub sns_map {
+  my $candidate_type = param('candidate') || 'actual';
+  my $limit     = param('limit') || 100;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+
+  my @mysql_dsn = app1_mysql();
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+  my $dbh = mysql_dbh(@mysql_dsn);
+
+# 특정일에 따른 후보자 언급 수
+  my $sql = qq{
+SELECT * FROM
+(
+   SELECT word,
+          sum(mention_count) as tw_mentioned_count,
+          date(pub_date_begin) as `date`
+   FROM $app1_schema.wave_rank_mention_count
+   WHERE date_sub(?, interval ? second) <= pub_date_begin
+     AND pub_date_begin <= ?
+   GROUP BY word 
+   ORDER BY NULL
+) wc,
+$app2_schema.candidate
+WHERE wc.word = $app2_schema.candidate.candidate_name
+ORDER BY tw_mentioned_count DESC
+LIMIT ?
+  };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime, $limit);
+
+  my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @{$list} );
+
+# 이름과 매칭되는 후보자 정보 추출
+  $dbh = mysql_dbh(app2_mysql());
+  foreach my $row ( @{$list} ) {
+    $row->{tw_mentioned_total} = $total_sum_of_mention_count;
+    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, $total_sum_of_mention_count);
+
+    $row->{cp_party_id} = $candidate_type eq 'potential'
+                        ? $row->{cp_party_id_1} : $row->{cp_party_id_2};
+  }
+
+=rem
+# 후보자 정보 homo_id 가 null이 아닌 경우에만 유용한 결과로 필터링
+  my @filtered;
+  foreach my $index(0 .. $#{$list}) {
+    push(@filtered, ${$list}[$index]) if defined ${$list}[$index]->{homo_id};
+  }
+=cut
+
+  my $help = {
+    "API_name" => "SNS 맵",
+    "API_desc" => "후보자 SNS 점유율 맵을 그리기 위한 용도",
+    word => "언급된 후보자명",
+    tw_mentioned_count => "후보자 언급 횟수",
+    tw_mentioned_total => "총선 후보 전체 트윗 수",
+    tw_mentioned_share => "점유율",
+    homo_id => "검색 인물 정보ID",
+    cp_person_id => "CP 인물ID",
+    cp_party_id => "CP 정당ID (candidate=actual 인 경우, cp_party_id_2, candidate=potential 인 경우, cp_party_id_1)",
+    cp_election_district_id => "CP_선거구ID",
+  };
+
+  return (
+    results => $list,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      asof => $asof,
+      asof_datetime => $asof_datetime,
+    },
+  );
+}
+
+sub sns_map_detail {
+  my $homo_id        = param('homo_id');
+  my $cp_person_id   = param('cp_person_id');
+  my $candidate_type = param('candidate') || 'actual';
+  my $asof           = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  # YYYY MM DD hh mm ss
+  #    4  6  8 10 12
+  $asof = substr($asof.("0"x14), 0, 14);
+  my $asof_rounded   = int ($asof / 100) * 100;
+  my $asof_datetime  =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof_rounded.("0"x12)));
+  my $interval       = param('interval') || 86400;
+
+  info("[1]");
+
+# 후보자 정보 추출
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+  my $sql = q{
+SELECT *
+FROM candidate 
+WHERE cp_person_id = ?
+  };
+  my $candidate = $dbh->selectrow_hashref($sql, { Slice => {} }, $cp_person_id);
+
+  info("[2] before twitter_profile()");
+
+  # add twitter user profile from sns profile collection
+  my ($profile_count, $profile) = twitter_profile($candidate->{twitter_id});
+  $candidate->{tw_profile} = $profile;
+
+  $dbh = mysql_dbh(app1_mysql());
+  # 최근 10일간 후보자 언급 수 추출
+  $sql = qq{
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
+       SUM(mention_count) AS mention_count
+FROM $app1_schema.wave_rank_mention_count
+WHERE word = ?
+  AND DATE_SUB(?, INTERVAL 10 DAY) <= pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY `date`
+  };
+  my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+    Encode::decode("utf8", $candidate->{candidate_name}),
+    $asof_datetime, $asof_datetime,
+  );
+#use Data::Dumper;
+#print Dumper($mentions_ref), "\n";
+
+  info("[2-1] after fetching mention_count during 10 days");
+  # 최근 10일간 후보자 RT 수 추출
+  $sql = qq{
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
+       SUM(rt_count) AS retweet_count
+FROM $app2_schema.rt_count
+WHERE screen_name = ?
+  AND DATE_SUB(?, INTERVAL 10 DAY) <= pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY `date`
+  };
+  my $retweets_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+    $candidate->{twitter_id},
+    $asof_datetime, $asof_datetime,
+  );
+#print Dumper($retweets_ref), "\n";
+
+  my @count_history = ();
+  info("[3]");
+
+# 10일간 언급, RT, 트윗 수 기록
+  my @date_list = date_list($asof_datetime, 10);
+  foreach my $date ( @date_list ) {
+    push @count_history, {
+      date => $date,
+      mention_count => $mentions_ref->{$date} ? $mentions_ref->{$date}->{mention_count} : 0,
+      retweet_count => $retweets_ref->{$date} ? $retweets_ref->{$date}->{retweet_count} : 0,
+      tweet_count => 0,
+    };
+  }
+  $candidate->{tw_count_history} = \@count_history;
+
+  $candidate->{cp_party_id} = $candidate_type eq 'potential'
+                            ? $candidate->{cp_party_id_1} : $candidate->{cp_party_id_2};
+
+
+  info("[4] before twitter-user_timeline]");
+  # 언급한 글, 새 글, 소문난 리스트
+  my ($timeline_count, $timeline_ref)
+    = twitter_user_timeline($candidate->{twitter_id}, $asof_rounded);
+  info("[5] before twitter_mentioned_top");
+  my ($mentioned_count, $mentioned_ref)
+    = ( 0, [] );
+    #= twitter_mentioned_top($candidate->{twitter_id}, $asof_datetime, $interval);
+  info("[6] before twitter_retweeted_top");
+  my ($retweeted_count, $retweeted_ref)
+    = twitter_retweeted_top($candidate->{twitter_id}, $asof_datetime, $interval);
+
+
+  info("[7] before twitter_retweeted_top of all");
+  my ($all_retweeted_count, $all_retweeted_ref)
+    = twitter_retweeted_top("", $asof_datetime, $interval);
+  info("[8]");
+
+  $candidate->{twitter_timeline} = $timeline_ref;
+  $candidate->{twitter_mention} = $mentioned_ref;
+  $candidate->{twitter_retweeted} = $retweeted_ref;
+  $candidate->{twitter_retweeted_of_all_candidates} = $all_retweeted_ref;
+
+  my $help = {
+    "API_name" => "SNS 맵 상세",
+    "API_desc" => "후보자의 SNS 관련 상세 정보",
+    twitter_id => "후보자 트위터 ID",
+    candidate_name => "후보자명",
+    tw_mentioned_history => "최근 6일간 언급된 수",
+    tw_rt_history => "최근 6일간 RT 수",
+    tw_tweet_history => "최근 6일간 후보자 트윗 수",
+    sido_cd => "특별/광역/도 코드",
+    sido_name => "특별/광역/도 이름",
+    sido_short_name => "특별/광역/도 이름의 약칭",
+    cp_election_district_id => "CP_선거구ID",
+    election_district_name => "선거구 이름",
+    election_district_short_name => "선거구 이름의 약칭",
+    homo_id => "검색 인물 정보ID",
+    cp_person_id => "CP 인물ID",
+    cp_party_id => "CP 정당ID (candidate=actual 인 경우, cp_party_id_2, candidate=potential 인 경우, cp_party_id_1)",
+  };
+  
+  return (
+    results => $candidate,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      twitter_id => $candidate->{twitter_id},
+      profile_count => $profile_count,
+    },
+  );
+}
+
+sub election_candidate {
+  my (@where, @where_param);
+  foreach ( qw( homo_id cp_person_id cp_party_id_1 cp_party_id_2
+                cp_election_district_id twitter_id ) ) {
+    my @this_param = param($_);
+    foreach my $value ( @this_param ) {
+      push @where, "candidate.$_ = ?";
+      push @where_param, $value;
+    }
+  }
+  push @where, "1" if scalar @where < 1;
+  my $sql_where = join(" OR ", @where);
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = q{
+SELECT @rownum := @rownum + 1 AS rownum,
+       d.*
+FROM
+( SELECT candidate.*, map.x AS wcongnamul_x, map.y AS wcongnamul_y
+  FROM candidate, district_map_coordinates map
+  WHERE candidate.cp_election_district_id = map.cp_election_district_id
+        AND ( } . $sql_where . q{ )
+) d,
+( SELECT @rownum := 0 ) r
+  };
+  my $help = {
+    nownum  => "순위",
+    homo_id => "통합검색 인물ID",
+    cp_person_id => "CP 인물ID",
+    candidate_name => "후보자 이름",
+    election_symbol => "기호",
+    cp_party_id_1 => "CP 정당ID",
+    cp_party_id_2 => "CP 정당ID",
+    party_name => "정당이름",
+    party_short_name => "정당이름 약칭",
+    twitter_id => "트위터ID",
+    #latitude  => "WGS-84 위도",
+    #longitude => "WGS-84 경도",
+  };
+
+  return (
+    results => $dbh->selectall_arrayref($sql, { Slice => {} }, @where_param),
+    help => $help,
+    debug => { mysql => $mysql_dsn[0], },
+  );
+}
+
+sub most_retweeted {
+  my $limit     = param('limit') || 25;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+
+  my ($count, $list_ref) = twitter_retweeted_top("", $asof_datetime, $interval);
+
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub twitter_realtime {
+  my $limit     = param('limit') || 100;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+  my $begindate = param('begindate');
+
+  my @mysql_dsn = app1_mysql();
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $sql = qq{
+SELECT word, tw_mentioned_count, `date`, twitter_id FROM
+(
+   SELECT word, sum(mention_count) as tw_mentioned_count, date(pub_date_begin) as `date`
+   FROM $app1_schema.wave_rank_mention_count
+   WHERE date_sub(?, interval ? second) <= pub_date_begin
+     AND pub_date_begin <= ?
+   GROUP BY word 
+   ORDER BY NULL
+) wc,
+$app2_schema.candidate c
+WHERE wc.word = c.candidate_name
+ORDER BY tw_mentioned_count DESC
+LIMIT ?
+  };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime, $limit);
+  my @twitter_id = ();
+  map { $_->{twitter_id} and push @twitter_id, $_->{twitter_id}; } @{$list};
+
+  my ($count, $list_ref) = twitter_realtime_doc(@twitter_id);
+
+  my $help = {
+    "API_name" => "최다 RT 트윗",
+    "API_desc" => "많이 RT된 후보자 트윗 최근, 24시간 이내 후보자 트윗 중 가장 많이 RT된 트윗 10건",
+  };
+
+  return (
+    results => $list_ref,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+    },
+  );
+}
+
+sub debug_twitter {
+  my @docid = qw(
+paransora|177223546521661440
+kim_whee|177223542868418560
+cbhwa|177223533473177601
+  );
+  my ($count, $list_ref) = twitter_doc(@docid);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub debug_twitter_profile {
+  my $user = q(moonriver365);
+  my ($count, $list_ref) = twitter_profile($user);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub debug_twitter_user_timeline {
+  my $user = param('twitter_id') || q(gh_park);
+  my $asof = param('asof')       || q(20120309);
+  my ($count, $list_ref) = twitter_user_timeline($user, $asof);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub debug_faster_twitter_user_timeline {
+  my $user = param('twitter_id') || q(gh_park);
+  my $asof = param('asof')       || q(20120309);
+  my ($count, $list_ref) = faster_twitter_user_timeline($user, $asof);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub debug_retweeted_top {
+  my $user = param('twitter_id') || 'moonriver365';
+  my $asof = param('asof')       || '20120310';
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+
+  my ($count, $list_ref) = twitter_retweeted_top($user, $asof_datetime, "86400");
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub debug_mentioned_top {
+  my $user = param('twitter_id') || 'moonriver365';
+  my $asof = param('asof')       || '20120310';
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+
+  my ($count, $list_ref) = twitter_mentioned_top($user, $asof_datetime, 86400);
+  return (
+    results => $list_ref,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      count => $count,
+    },
+  );
+}
+
+sub realtime_ddm_dynamic_status {
+  my $dbh = realtime_dbh();
+  my ($max_id) = $dbh->selectrow_array( q{select max(id) from realtime_article});
+  my ($min_id) = $dbh->selectrow_array( q{select min(id) from realtime_article});
+
+  return ( status => {
+    min_id  => $min_id,
+    min_url => "$full_url/realtime_ddm_dynamic_list?from=$min_id",
+    max_id  => $max_id,
+    max_url => "$full_url/realtime_ddm_dynamic_list?from=$max_id",
+  });
+}
+
+sub realtime_ddm_dynamic_list {
+  my $from     = param('from');
+  my $count    = param('count') || 100;
+
+  my $dbh = realtime_dbh();
+  ($from) = $dbh->selectrow_array(
+              q{select max(id) from realtime_article}
+            ) unless defined $from;
+
+  my $sql = q(select * from realtime_article where id between ? and ?);
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} }, $from, $from+$count-1);
+
+  my $max_id = $from;
+  foreach my $row ( @{$list} ) {
+    $max_id = $row->{id} if $max_id < $row->{id};
+  }
+  my $next = $max_id + 1;
+  return (
+    next_urls      => [ next_urls($q->url(-path_info=>1,-absolute=>1) . "?from=$next&count=$count") ],
+    format_version => "json_breeze_ds_0.1",
+    results           => $list,
+  );
+}
+
+###############################################################################
+
+sub twitter_realtime_doc {
+  use LWP::Simple qw(!head);
+
+  my @list = @_;
+  my $userid = join(",", @list);
+  my $url = qq($realtime_breeze?euc=utf8&n=10&req=all&userid=) . $userid;
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  my $data_ref = XMLin($xml) or return (0, []);
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub faster_twitter_realtime_doc {
+  use LWP::Simple qw(!head);
+  use XML::Bare;
+
+  my @list = @_;
+  my $userid = join(",", @list);
+  my $url = qq($realtime_breeze?euc=utf8&n=10&req=all&userid=) . $userid;
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
+  my $count = $data_ref->{r}->{m}->{pc};
+  my $list_ref = $data_ref->{r}->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub deprecated_twitter_doc {
+  use LWP::Simple qw(!head);
+
+  my @list = @_;
+  # http://10.30.134.7:7777/front/search.py?edocid=
+  my $edocid = join(":", sort @list);
+  #my $url = qq($socialweb_breeze?euc=utf8&edocid=) . $edocid;
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
+  debug("[td-1 before LWP, url=$url]");
+
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  info("[td-2 after LWP]");
+  my $data_ref = XMLin($xml) or return (0, []);
+  info("[td-3 after XMLin]");
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub twitter_doc {
+  use LWP::Simple qw(!head);
+
+  my @list = @_;
+  my $edocid = join(":", @list);
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&edocid=) . $edocid;
+  debug("[td-1 before LWP] $url");
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  info("[td-2 after LWP]");
+  my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
+  info("[td-3 after XML::Bare]");
+  my $count = $data_ref->{r}->{m}->{pc};
+  my $list_ref = $data_ref->{r}->{ds}->{data};
+  return ($count, $list_ref);
+}
+
+sub twitter_profile {
+  use LWP::Simple qw(!head);
+
+  my ($user) = @_;
+  # http://10.10.157.23:7777/front/search.py?q=oisoo&enc=utf8&output=json
+  my $url = qq($profile_breeze?enc=utf8&output=json&req=elect&q=) . $user . q( site:twitter);
+  debug("[pf-1 before LWP] $url");
+  my $json_string = LWP::Simple::get($url);
+  info("[pf-2 after-LWP]");
+
+  my $data_ref = $json->decode($json_string);
+  my $count = $data_ref->{pageable_count};
+  my $list_ref = $data_ref->{xml_disp};
+  info("[pf-3 after-JSON::decode]");
+
+  return ($count, $list_ref);
+}
+
+sub deprecated_twitter_user_timeline {
+  use XML::Simple;
+  use LWP::Simple qw(!head);
+
+  my ($user, $asof) = @_;
+  $asof = substr($asof.("0"x14), 0, 14);
+  # http://10.10.134.7:7777/front/search.py?user=moonriver365
+  # http://10.31.127.168/front/search.py?enc=utf8&child=y&req=tab
+  #  &rt=y&n=10&issuelink=n&cluster_page=1&p=1&q=user%3AKang_yongseok&anchor=y&enddate=2012031200000
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
+  debug("$url");
+
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  info("[tut-1 after LWP::Simple::get]");
+  my $data_ref = XMLin($xml);
+  info("[tut-2 after XMLin]");
+  my $count = $data_ref->{m}->{pc};
+  my $list_ref = $data_ref->{ds}->{data};
+
+  return ($count, $list_ref);
+}
+
+sub twitter_user_timeline {
+  use LWP::Simple qw(!head);
+  use XML::Bare;
+
+  my ($user, $asof) = @_;
+  my $url = qq($socialweb_breeze?enc=utf8&child=n&req=tab&rt=n&n=25&issuelink=n&cluster_page=1&enddate=$asof&q=user:) . $user;
+
+  debug("[tut-1 before LWP] $url");
+  my $xml = LWP::Simple::get($url) or return (0, []);
+  info("[tut-2 after LWP]");
+  my $data_ref = new XML::Bare(text => $xml)->simple();
+  info("[tut-3 after XML::Bare->simple()]");
+  my $count = $data_ref->{r}->{m}->{pc};
+  my $list_ref = $data_ref->{r}->{ds}->{data};
+
+  return ($count, $list_ref);
+}
+
+sub twitter_retweeted_top {
+  my ($user, $asof_datetime, $interval) = @_;
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+
+  my $where_twitter_id = "rc.screen_name = ?";
+  $where_twitter_id = q('no_value' != ?) unless $user;
+  my $sql = qq{
+SELECT CONCAT(LOWER(screen_name), '|', id) AS status_id, SUM(rt_count) AS retweeted_count_sum
+FROM $app2_schema.rt_count rc, $app2_schema.time_20min t, $app2_schema.candidate c
+WHERE rc.pub_date_begin = t.each_time
+  AND date_sub(?, interval ? second) <= t.each_time
+  AND t.each_time <= ?
+  AND rc.screen_name = c.twitter_id
+  AND $where_twitter_id
+GROUP BY rc.id
+ORDER BY retweeted_count_sum DESC
+LIMIT 25
+  };
+  debug("[rt-1] $sql");
+  my $retweeted_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime, $user);
+  info("[rt-2] after selectall_hashref");
+  my @status_id = keys %{$retweeted_top};
+
+  return (0, []) if scalar @status_id < 1;
+
+#print Dumper(\@status_id), "\n";
+  #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
+  #map { print "status_id=$_\n"; } @status_id;
+  my ($count, $list_ref) = twitter_doc(@status_id);
+  $list_ref = [ $list_ref ] if $count == 1;
+
+#print "count=$count, list_ref=$list_ref\n";
+#use Data::Dumper;
+#print Dumper($list_ref), "\n";
+
+  foreach ( @{$list_ref} ) {
+    my $edocid = $_->{edocid};
+    $_->{retweet_count} = $retweeted_top->{$edocid}->{retweeted_count_sum};
+  }
+  my @sorted_list = sort { $b->{retweet_count}
+                            <=> $a->{retweet_count} } @{$list_ref};
+  return ($count, \@sorted_list);
+}
+
+sub twitter_mentioned_top {
+  my ($user, $asof_datetime, $interval) = @_;
+
+  my @mysql_dsn = app2_mysql();
+  my $dbh = mysql_dbh(@mysql_dsn);
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+
+  my $sql = qq{
+SELECT CONCAT(snsname, '|', status) AS status_id
+FROM $app1_schema.wave_rank_election_v1 
+WHERE DATE_SUB(?, INTERVAL ? SECOND) <= createat 
+  AND createat <= ?
+  AND word = (SELECT candidate_name FROM $app2_schema.candidate WHERE twitter_id = ?)
+ORDER BY createat DESC 
+LIMIT 25
+  };
+  my $mentioned_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime,  $user,
+  );
+  my @status_id = keys %{$mentioned_top};
+
+  info("[mt] after mysql query]");
+
+  return (0, []) if scalar @status_id < 1;
+
+  #map { print "status_id=", $_->{status_id}, " count=", $_->{retweeted_count_sum}, "\n"; } values %{$retweeted_top};
+  #map { print "status_id=$_\n"; } @status_id;
+  my ($count, $list_ref) = twitter_doc(@status_id);
+  info("[mt] after breeze query]");
+  return ($count, $list_ref);
+
+
+}
