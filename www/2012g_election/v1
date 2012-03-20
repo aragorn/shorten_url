@@ -62,6 +62,7 @@ my %dispatch = (
   index                       => \&handler_index,
   district_list               => \&district_list,
   district                    => \&district,
+  district_with_list          => \&district_with_list,
   sns_map                     => \&sns_map,
   sns_map_detail              => \&sns_map_detail,
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
@@ -367,7 +368,7 @@ GROUP BY word
 }
 
 sub district {
-  my $id = param('id');
+  my $id        = param('id');
   my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
@@ -475,6 +476,28 @@ ORDER BY `date` desc
     },
   );
 }
+
+sub district_with_list {
+  my $id        = param('id');
+
+  my %district_list = district_list();
+  my %district      = district();
+  my $rank = 0;
+  foreach ( @{$district_list{results}} ) {
+    $rank ++;
+    if ( $_->{cp_election_district_id} eq $id ) {
+      last;
+    }
+  }
+
+  return (
+    district_rank => $rank,
+    district => $district{results},
+    list => $district_list{results},
+  );
+}
+
+
 
 sub sns_map {
   my $candidate_type = param('candidate') || 'actual';
