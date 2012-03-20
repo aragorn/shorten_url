@@ -7,7 +7,7 @@ my ($t1, $t01) = (new Benchmark, [gettimeofday]);
 use strict;
 use warnings;
 use utf8;
-use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
+#use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
 use LWP::UserAgent;
 use LWP::Simple qw(!head);

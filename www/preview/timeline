@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use utf8;
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
-use CGI::Carp qw(fatalsToBrowser);
+#use CGI::Carp qw(fatalsToBrowser);
 use Daum;
 use Daum::ShortenURL;
 use POSIX;

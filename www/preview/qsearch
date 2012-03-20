@@ -6,7 +6,7 @@ use utf8;
 use LWP::UserAgent;
 use LWP::Simple qw(!head);
 use CGI qw(:standard escape escapeHTML -oldstyle_urls);
-use CGI::Carp qw(fatalsToBrowser);
+#use CGI::Carp qw(fatalsToBrowser);
 use Daum;
 
 binmode STDOUT, ":encoding(UTF-8)";
