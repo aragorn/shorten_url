@@ -392,14 +392,15 @@ AND c.cp_election_district_id = ?
 
 # 특정 격전지의 기준일 대비 과거 10일간, 각 후보자들의 언급횟수 총합
   $sql = qq{
-SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) as `date`,
+       SUM(mention_count) as `count` 
 FROM $app1_schema.wave_rank_mention_count wc, $app2_schema.candidate c
 WHERE c.cp_election_district_id = ?
   AND c.candidate_name = wc.word
   AND date_sub(?, interval 10 day) <= wc.pub_date_begin
   AND pub_date_begin <= ?
-GROUP BY date(wc.pub_date_begin)
-ORDER BY date desc
+GROUP BY `date`
+ORDER BY `date` desc
   };
   my $total_counts = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
     $id, $asof_datetime, $asof_datetime);
@@ -409,15 +410,16 @@ ORDER BY date desc
   #print "date_list=", join(",", @date_list), "\n";
 
   foreach my $row ( @{$list} ) {
-# 최근 11일간 후보자 언급 수 추출
+# 최근 10일간 후보자 언급 수 추출
     $sql = qq{
-SELECT date(pub_date_begin) as `date`, sum(mention_count) as `count` 
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) as `date`,
+       SUM(mention_count) as `count` 
 FROM $app1_schema.wave_rank_mention_count wc
 WHERE wc.word = ?
-  AND date_sub(?, interval 11 day) <= wc.pub_date_begin
+  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
   AND pub_date_begin <= ?
-GROUP BY date(wc.pub_date_begin)
-ORDER BY date desc
+GROUP BY `date`
+ORDER BY `date` desc
     };
     my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
       Encode::decode("utf8",$row->{candidate_name}),
@@ -429,16 +431,22 @@ ORDER BY date desc
       push @{$row->{tw_shared_history}}, $_;
     }
 
+    $row->{tw_mentioned_count_sum} =
+       sum( map { $mentions_ref->{$_}->{count} } @date_list );
+    $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
+
     $row->{tw_mentioned_share_avg} =
        mean( map { $mentions_ref->{$_}->{share} } @date_list );
-    $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
     $row->{tw_mentioned_share} = $mentions_ref->{$asof_date}->{share} || 0;
   }
   my @sorted_list = 
     sort { $b->{tw_mentioned_count}
        <=> $a->{tw_mentioned_count} } @{$list};
 
-  my $tuned_list = [ grep { $_->{tw_mentioned_share_avg} > 0 } @sorted_list ];
+  my $tuned_list = [ grep {
+    $_->{tw_mentioned_share_avg} > 0 and
+    $_->{tw_mentioned_count_sum} > 10
+  } @sorted_list ];
 
   my $help = {
     "API_name" => "격전지 상세",
