@@ -372,7 +372,8 @@ GROUP BY word
 }
 
 sub district {
-  my $id        = param('id');
+  my $id_from_caller = shift;
+  my $id        = param('id') || $id_from_caller;
   my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
@@ -383,7 +384,6 @@ sub district {
   my $app1_schema = app1_schema();
   my $app2_schema = app2_schema();
 
-#debug("id=$id");
 # 특정 격전지 후보 추출
   my $sql = qq{
 SELECT 
@@ -434,9 +434,11 @@ ORDER BY `date` desc
       $asof_datetime, $asof_datetime);
     $row->{tw_shared_history} = [];
     foreach my $date ( @date_list ) { # 점유율 계산
-      $_ = $mentions_ref->{$date} || { date => $date, count => 0 };
-      $_->{share} = percent($_->{count}, $total_counts->{$date}->{count});
-      push @{$row->{tw_shared_history}}, $_;
+      my $stat = $mentions_ref->{$date} || {};
+      $stat->{date}  = $date;
+      $stat->{count} = $stat->{count} ? $stat->{count} : 0;
+      $stat->{share} = percent($stat->{count}, $total_counts->{$date}->{count});
+      push @{$row->{tw_shared_history}}, $stat;
     }
 
     $row->{tw_mentioned_count_sum_2days} =
@@ -479,6 +481,7 @@ ORDER BY `date` desc
   };
 
   return (
+    #results => \@sorted_list,
     results => $tuned_list,
     help => $help,
     debug => {
@@ -493,9 +496,7 @@ sub district_list_with_candidate {
 
   foreach ( @{$district_list{results}} ) {
     my $district_id = $_->{cp_election_district_id};
-#debug("district_id=$district_id");
-    $q->param(-name=>'id', -value=>$district_id);
-    my %district      = district();
+    my %district      = district($district_id);
     $_->{candidate_list} = { candidate => $district{results}, };
   }
 
