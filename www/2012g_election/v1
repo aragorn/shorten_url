@@ -63,6 +63,7 @@ my %dispatch = (
   district_list               => \&district_list,
   district                    => \&district,
   district_with_list          => \&district_with_list,
+  district_list_with_candidate => \&district_list_with_candidate,
   sns_map                     => \&sns_map,
   sns_map_detail              => \&sns_map_detail,
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
@@ -381,6 +382,8 @@ sub district {
   my $dbh = mysql_dbh(@mysql_dsn);
   my $app1_schema = app1_schema();
   my $app2_schema = app2_schema();
+
+#debug("id=$id");
 # 특정 격전지 후보 추출
   my $sql = qq{
 SELECT 
@@ -410,6 +413,7 @@ ORDER BY `date` desc
     $id, $asof_datetime, $asof_datetime);
 
   my @date_list = date_list($asof_datetime, 10);
+  my @date_list_2days = date_list($asof_datetime, 2);
   my $asof_date = $date_list[0];
   #print "date_list=", join(",", @date_list), "\n";
 
@@ -435,6 +439,9 @@ ORDER BY `date` desc
       push @{$row->{tw_shared_history}}, $_;
     }
 
+    $row->{tw_mentioned_count_sum_2days} =
+       sum( map { $mentions_ref->{$_}->{count} } @date_list_2days );
+
     $row->{tw_mentioned_count_sum} =
        sum( map { $mentions_ref->{$_}->{count} } @date_list );
     $row->{tw_mentioned_count} = $mentions_ref->{$asof_date}->{count} || 0;
@@ -449,7 +456,8 @@ ORDER BY `date` desc
 
   my $tuned_list = [ grep {
     $_->{tw_mentioned_share_avg} > 0 and
-    $_->{tw_mentioned_count_sum} > 10
+    $_->{tw_mentioned_count_sum} > 20 and
+    $_->{tw_mentioned_count_sum_2days} > 10
   } @sorted_list ];
 
   my $help = {
@@ -477,6 +485,22 @@ ORDER BY `date` desc
       app1_mysql => (app1_mysql())[0],
       app2_mysql => (app2_mysql())[0],
     },
+  );
+}
+
+sub district_list_with_candidate {
+  my %district_list = district_list();
+
+  foreach ( @{$district_list{results}} ) {
+    my $district_id = $_->{cp_election_district_id};
+#debug("district_id=$district_id");
+    $q->param(-name=>'id', -value=>$district_id);
+    my %district      = district();
+    $_->{candidate_list} = { candidate => $district{results}, };
+  }
+
+  return (
+    district => $district_list{results},
   );
 }
 
