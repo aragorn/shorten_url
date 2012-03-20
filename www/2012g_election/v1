@@ -289,6 +289,8 @@ sub district_list {
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
   my $interval  = param('interval') || 86400;
+  my $size      = param('size') || 20;
+  my $last = $size - 1;
 
   my $app2_dbh = mysql_dbh( app2_mysql() );
 # 격전지별 전체 후보 추출
@@ -332,12 +334,13 @@ GROUP BY word
   foreach my $index ($limit .. $#sorted) {
     delete $sorted[$index];
   }
-  #map { print "count=", $_->{tw_mentioned_count}, "\n"; } @sorted;
 
 # percent 집계
   my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @sorted );
   map { $_->{tw_mentioned_share} = 
           percent($_->{tw_mentioned_count}, $total_sum_of_mention_count); } @sorted;
+
+  my @sorted_with_size = @sorted[0..$last];
 
   my $help = {
     "API_name" => "격전지 왼쪽 리스트",
@@ -355,7 +358,7 @@ GROUP BY word
   };
 
   return (
-    results => \@sorted,
+    results => \@sorted_with_size,
     help => $help,
     debug => {
       app1_mysql => (app1_mysql())[0],
@@ -478,7 +481,9 @@ ORDER BY `date` desc
 }
 
 sub district_with_list {
-  my $id        = param('id');
+  my $id   = param('id');
+  my $size = param('size') || 20;
+  my $last = $size - 1;
 
   my %district_list = district_list();
   my %district      = district();
@@ -489,11 +494,13 @@ sub district_with_list {
       last;
     }
   }
+  my @district_list = @{$district_list{results}}[0..$last];
 
   return (
     district_rank => $rank,
     district => $district{results},
-    list => $district_list{results},
+    #district_list => $district_list{results},
+    district_list => \@district_list,
   );
 }
 
