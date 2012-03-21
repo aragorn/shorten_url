@@ -378,7 +378,7 @@ sub district {
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
-  my $option    = param('option') || "";
+  my $all_candidates = param('all_candidates') || "";
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -457,7 +457,7 @@ ORDER BY `date` desc
     sort { $b->{tw_mentioned_count}
        <=> $a->{tw_mentioned_count} } @{$list};
   my $tuned_list;
-  if ( $option =~ m/all_candidates/ ) {
+  if ( $all_candidates and $all_candidates ne 'no' ) {
     $tuned_list = [ @sorted_list ];
   } else {
     $tuned_list = [ grep {
