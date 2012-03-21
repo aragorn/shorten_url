@@ -378,6 +378,7 @@ sub district {
   my $asof_datetime =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $option    = param('option') || "";
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -455,12 +456,16 @@ ORDER BY `date` desc
   my @sorted_list = 
     sort { $b->{tw_mentioned_count}
        <=> $a->{tw_mentioned_count} } @{$list};
-
-  my $tuned_list = [ grep {
-    $_->{tw_mentioned_share_avg} > 0 and
-    $_->{tw_mentioned_count_sum} > 20 and
-    $_->{tw_mentioned_count_sum_2days} > 10
-  } @sorted_list ];
+  my $tuned_list;
+  if ( $option =~ m/all_candidates/ ) {
+    $tuned_list = [ @sorted_list ];
+  } else {
+    $tuned_list = [ grep {
+      $_->{tw_mentioned_share_avg} > 0 and
+      $_->{tw_mentioned_count_sum} > 20 and
+      $_->{tw_mentioned_count_sum_2days} > 10
+    } @sorted_list ];
+  }
 
   my $help = {
     "API_name" => "격전지 상세",
@@ -481,7 +486,6 @@ ORDER BY `date` desc
   };
 
   return (
-    #results => \@sorted_list,
     results => $tuned_list,
     help => $help,
     debug => {
