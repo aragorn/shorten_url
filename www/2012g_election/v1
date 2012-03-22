@@ -391,6 +391,7 @@ sub district {
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
   my $all_candidates = param('all_candidates') || "";
+  my $candidate_type = param('candidate') || 'actual';
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -464,6 +465,9 @@ ORDER BY `date` desc
     $row->{tw_mentioned_share_avg} =
        mean( map { $mentions_ref->{$_}->{share} } @date_list );
     $row->{tw_mentioned_share} = $mentions_ref->{$asof_date}->{share} || 0;
+
+    $row->{cp_party_id} = $candidate_type eq 'potential'
+                        ? $row->{cp_party_id_1} : $row->{cp_party_id_2};
   }
   my @sorted_list = 
     sort { $b->{tw_mentioned_count}
