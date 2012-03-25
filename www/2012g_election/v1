@@ -1171,6 +1171,7 @@ sub twitter_doc {
   my $data_ref = new XML::Bare(text => $xml)->simple() or return (0, []);
   info("[td-3 after XML::Bare]");
   my $count = $data_ref->{r}->{m}->{pc};
+  return (0, []) unless $count > 0;
   my $list_ref = $data_ref->{r}->{ds}->{data};
   return ($count, $list_ref);
 }
