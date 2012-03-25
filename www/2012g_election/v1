@@ -779,9 +779,10 @@ sub brief_sns_map {
   my $limit     = param('limit') || 500;
   my $size      = param('size')  || 3;
   my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
-  my $asof_datetime =
+  my $asof_rounded   = int ($asof / 100) * 100;
+  my $asof_datetime  =
        sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+               unpack("A4A2A2A2A2A2", $asof_rounded.("0"x12)));
   my $interval  = param('interval') || 86400;
 
   my @mysql_dsn = app1_mysql();
