@@ -669,7 +669,7 @@ WHERE cp_person_id = ?
 
   $dbh = mysql_dbh(app1_mysql());
   # 최근 10일간 후보자 언급 수 추출
-  my $mentions_ref;
+  my @binded_vars_for_now = ();
   $sql = qq{
 SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
        SUM(mention_count) AS mention_count
@@ -686,25 +686,23 @@ SELECT DATE( ? ) AS `date`,
        SUM(mention_count) AS mention_count
 FROM $app1_schema.wave_rank_mention_count
 WHERE word = ?
-  AND DATE_SUB(?, INTERVAL 1 HOUR) <= pub_date_begin
+  AND DATE_SUB(?, INTERVAL 12 HOUR) <= pub_date_begin
   AND pub_date_begin <= ?
     };
-    info("[2-1] before fetching mention_count during 10 days + 12 hours");
-    info("[2-1] $sql");
-    $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
-      Encode::decode("utf8", $candidate->{candidate_name}),
-      $asof_datetime, $asof_datetime,
+    @binded_vars_for_now = ( 
       $asof_datetime,
       Encode::decode("utf8", $candidate->{candidate_name}),
       $asof_datetime, $asof_datetime,
     );
   } else {
-    info("[2-1] before fetching mention_count during 10 days");
-    $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
-      Encode::decode("utf8", $candidate->{candidate_name}),
-      $asof_datetime, $asof_datetime,
-    );
+    @binded_vars_for_now = ();
   }
+  info("[2-1] before fetching mention_count during 10 days");
+  my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
+    Encode::decode("utf8", $candidate->{candidate_name}),
+    $asof_datetime, $asof_datetime,
+    @binded_vars_for_now,
+  );
 #use Data::Dumper;
 #print Dumper($mentions_ref), "\n";
 
@@ -719,9 +717,28 @@ WHERE screen_name = ?
   AND pub_date_begin <= ?
 GROUP BY `date`
   };
+  if ( $asof_is_now ) {
+    $sql .= qq{
+UNION
+SELECT DATE( ? ) AS `date`,
+       SUM(rt_count) AS retweet_count
+FROM $app2_schema.rt_count
+WHERE screen_name = ?
+  AND DATE_SUB(?, INTERVAL 12 HOUR) <= pub_date_begin
+  AND pub_date_begin <= ?
+    };
+    @binded_vars_for_now = ( 
+      $asof_datetime,
+      $candidate->{twitter_id},
+      $asof_datetime, $asof_datetime,
+    );
+  } else {
+    @binded_vars_for_now = ();
+  }
   my $retweets_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
     $candidate->{twitter_id},
     $asof_datetime, $asof_datetime,
+    @binded_vars_for_now,
   );
 #print Dumper($retweets_ref), "\n";
 
