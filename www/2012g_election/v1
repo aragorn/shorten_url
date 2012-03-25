@@ -843,7 +843,7 @@ LIMIT ?
   my $list_of_size = [ @{$list}[0..$size-1] ];
 
   my ($all_retweeted_count, $all_retweeted_ref)
-    = twitter_retweeted_top("", $asof_datetime, $interval);
+    = twitter_retweeted_top("", $asof_datetime, $interval, $size);
 
   my $help = {
     "API_name" => "SNS 맵 요약",
@@ -1234,7 +1234,8 @@ sub twitter_user_timeline {
 }
 
 sub twitter_retweeted_top {
-  my ($user, $asof_datetime, $interval) = @_;
+  my ($user, $asof_datetime, $interval, $size) = @_;
+  $size = 25 unless $size;
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -1253,11 +1254,11 @@ WHERE rc.pub_date_begin = t.each_time
   AND $where_twitter_id
 GROUP BY rc.id
 ORDER BY retweeted_count_sum DESC
-LIMIT 25
+LIMIT ?
   };
   debug("[rt-1] $sql");
   my $retweeted_top = $dbh->selectall_hashref($sql, 'status_id', { Slice => {} },
-    $asof_datetime, $interval, $asof_datetime, $user);
+    $asof_datetime, $interval, $asof_datetime, $user, $size);
   info("[rt-2] after selectall_hashref");
   my @status_id = keys %{$retweeted_top};
 
