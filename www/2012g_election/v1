@@ -393,6 +393,7 @@ sub district {
                unpack("A4A2A2A2A2A2", $asof.("0"x12)));
   my $all_candidates = param('all_candidates') || "";
   my $candidate_type = param('candidate') || 'actual';
+  my $asof_is_now    = param('asof') ? 0 : 1;
 
   my @mysql_dsn = app2_mysql();
   my $dbh = mysql_dbh(@mysql_dsn);
@@ -412,20 +413,43 @@ AND c.cp_election_district_id = ?
   
   $dbh = mysql_dbh(app1_mysql());
 
-# 특정 격전지의 기준일 대비 과거 10일간, 각 후보자들의 언급횟수 총합
+  my @binded_vars_for_now = ();
+  # 특정 격전지의 기준일 대비 과거 10일간, 각 후보자들의 언급횟수 총합
   $sql = qq{
-SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) as `date`,
-       SUM(mention_count) as `count` 
+SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) AS `date`,
+       SUM(mention_count) AS `count` 
 FROM $app1_schema.wave_rank_mention_count wc, $app2_schema.candidate c
 WHERE c.cp_election_district_id = ?
   AND c.candidate_name = wc.word
-  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND DATE_SUB(?, INTERVAL 10 DAY) <= wc.pub_date_begin
   AND pub_date_begin <= ?
 GROUP BY `date`
-ORDER BY `date` desc
   };
+  if ( $asof_is_now ) {
+    $sql .= qq{
+UNION
+SELECT DATE( ? ) AS `date`,
+       SUM(mention_count) AS `count` 
+FROM $app1_schema.wave_rank_mention_count wc, $app2_schema.candidate c
+WHERE c.cp_election_district_id = ?
+  AND c.candidate_name = wc.word
+  AND DATE_SUB(?, INTERVAL 12 HOUR) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+GROUP BY `date`
+    };
+    @binded_vars_for_now = ( 
+      $asof_datetime,
+      $id,
+      $asof_datetime, $asof_datetime,
+    );
+  } else {
+    @binded_vars_for_now = ();
+  }
+  debug("total_counts=$sql");
   my $total_counts = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
-    $id, $asof_datetime, $asof_datetime);
+    $id, $asof_datetime, $asof_datetime,
+    @binded_vars_for_now,
+  );
 
   my @date_list = date_list($asof_datetime, 10);
   my @date_list_2days = date_list($asof_datetime, 2);
@@ -439,14 +463,33 @@ SELECT DATE( DATE_SUB(pub_date_begin, INTERVAL 4 HOUR) ) as `date`,
        SUM(mention_count) as `count` 
 FROM $app1_schema.wave_rank_mention_count wc
 WHERE wc.word = ?
-  AND date_sub(?, interval 10 day) <= wc.pub_date_begin
+  AND DATE_SUB(?, INTERVAL 10 DAY) <= wc.pub_date_begin
   AND pub_date_begin <= ?
 GROUP BY `date`
-ORDER BY `date` desc
     };
+    if ( $asof_is_now ) {
+      $sql .= qq{
+UNION
+SELECT DATE( ? ) AS `date`,
+       SUM(mention_count) AS `count` 
+FROM $app1_schema.wave_rank_mention_count wc
+WHERE wc.word = ?
+  AND DATE_SUB(?, INTERVAL 12 HOUR) <= wc.pub_date_begin
+  AND pub_date_begin <= ?
+      };
+      @binded_vars_for_now = ( 
+        $asof_datetime,
+        Encode::decode("utf8",$row->{candidate_name}),
+        $asof_datetime, $asof_datetime,
+      );
+    } else {
+      @binded_vars_for_now = ();
+    }
     my $mentions_ref = $dbh->selectall_hashref($sql, 'date', { Slice => {} },
       Encode::decode("utf8",$row->{candidate_name}),
-      $asof_datetime, $asof_datetime);
+      $asof_datetime, $asof_datetime,
+      @binded_vars_for_now,
+    );
     $row->{tw_shared_history} = [];
     foreach my $date ( @date_list ) { # 점유율 계산
       my $stat = $mentions_ref->{$date} || {};
