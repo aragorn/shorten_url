@@ -71,6 +71,7 @@ my %dispatch = (
   district_list_with_candidate => \&district_list_with_candidate,
   sns_map                     => \&sns_map,
   sns_map_detail              => \&sns_map_detail,
+  brief_sns_map               => \&brief_sns_map,
   realtime_ddm_dynamic_status => \&realtime_ddm_dynamic_status,
   realtime_ddm_dynamic_list   => \&realtime_ddm_dynamic_list,
   candidate                   => \&election_candidate,
@@ -773,6 +774,93 @@ GROUP BY `date`
   );
 }
 
+sub brief_sns_map {
+  my $candidate_type = param('candidate') || 'actual';
+  my $limit     = param('limit') || 500;
+  my $size      = param('size')  || 3;
+  my $asof      = param('asof')  || strftime("%Y%m%d%H%M%S", (localtime));
+  my $asof_datetime =
+       sprintf("%04d-%02d-%02d %02d:%02d:%02d",
+               unpack("A4A2A2A2A2A2", $asof.("0"x12)));
+  my $interval  = param('interval') || 86400;
+
+  my @mysql_dsn = app1_mysql();
+  my $app1_schema = app1_schema();
+  my $app2_schema = app2_schema();
+  my $dbh = mysql_dbh(@mysql_dsn);
+
+# 특정일에 따른 후보자 언급 수
+  my $sql = qq{
+SELECT * FROM
+(
+   SELECT word,
+          sum(mention_count) as tw_mentioned_count,
+          date(pub_date_begin) as `date`
+   FROM $app1_schema.wave_rank_mention_count
+   WHERE date_sub(?, interval ? second) <= pub_date_begin
+     AND pub_date_begin <= ?
+   GROUP BY word 
+   ORDER BY NULL
+) wc,
+$app2_schema.candidate
+WHERE wc.word = $app2_schema.candidate.candidate_name
+ORDER BY tw_mentioned_count DESC
+LIMIT ?
+  };
+  my $list = $dbh->selectall_arrayref($sql, { Slice => {} },
+    $asof_datetime, $interval, $asof_datetime, $limit);
+
+  my $total_sum_of_mention_count = sum( map { $_->{tw_mentioned_count} } @{$list} );
+
+  my $cp_party = {};
+  foreach my $row ( @{$list} ) {
+    $row->{tw_mentioned_total} = $total_sum_of_mention_count;
+    $row->{tw_mentioned_share} = percent($row->{tw_mentioned_count}, $total_sum_of_mention_count);
+
+    my $cp_party_id = $candidate_type eq 'potential'
+                      ? $row->{cp_party_id_1} : $row->{cp_party_id_2};
+    $row->{cp_party_id} = $cp_party_id;
+
+    unless ( exists $cp_party->{$cp_party_id} ) {
+      $cp_party->{$cp_party_id} = {
+        cp_party_id      => $cp_party_id,
+        party_short_name => $row->{party_short_name},
+        party_name       => $row->{party_name},
+        mentioned_count  => 0,
+        mentioned_share  => 0,
+      };
+    }
+
+    $cp_party->{$cp_party_id}->{mentioned_count} += $row->{tw_mentioned_count};
+    $cp_party->{$cp_party_id}->{mentioned_share}
+      = percent($cp_party->{$cp_party_id}->{mentioned_count}, $total_sum_of_mention_count);
+  }
+
+  my @sorted_parties = sort { $b->{mentioned_count} <=> $a->{mentioned_count} }
+                       values %{$cp_party};
+
+  my $list_of_size = [ @{$list}[0..$size-1] ];
+
+  my ($all_retweeted_count, $all_retweeted_ref)
+    = twitter_retweeted_top("", $asof_datetime, $interval);
+
+  my $help = {
+    "API_name" => "SNS 맵 요약",
+  };
+
+  return (
+    candidates => $list_of_size,
+    parties => \@sorted_parties,
+    top_retweeted => $all_retweeted_ref,
+    help => $help,
+    debug => {
+      app1_mysql => (app1_mysql())[0],
+      app2_mysql => (app2_mysql())[0],
+      asof => $asof,
+      asof_datetime => $asof_datetime,
+    },
+  );
+}
 sub election_candidate {
   my (@where, @where_param);
   foreach ( qw( homo_id cp_person_id cp_party_id_1 cp_party_id_2
