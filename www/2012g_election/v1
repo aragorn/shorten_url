@@ -113,7 +113,7 @@ print jsonp_footer($callback) if $suffix eq ".json";
 if ( $suffix eq ".csv" ) {
   binmode STDOUT, ":encoding(UTF-8)";
   my @columns = qw(candidate_name twitter_id cp_person_id party_name tw_mentioned_count tw_mentioned_share date);
-  my $csv = Text::CSV->new ( { binary => 1, } ) 
+  my $csv = Text::CSV->new ( { binary => 1, sep_char => "\t", always_quote => 1, } ) 
     or die "Cannot use CSV: ".Text::CSV->error_diag ();
   $csv->print(*STDOUT, \@columns); print "\n";
   foreach my $data ( @{$output->{results}} ) {
