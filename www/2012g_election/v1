@@ -9,6 +9,7 @@ use CGI qw(:standard escape escapeHTML -utf8 -oldstyle_urls);
 use Encode;
 use JSON;
 use XML::Bare;
+use Text::CSV;
 use Benchmark;
 use Time::HiRes qw(gettimeofday tv_interval);
 use POSIX qw(strftime);
@@ -41,7 +42,7 @@ our $realtime_breeze = "http://10.30.127.227:8080/search.2/search.py"; # realtim
 
 # You should not call CGI::path_info() which does not support
 # debugging mode from cmdline input.
-my ($query, $path, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt");
+my ($query, $path, $suffix) = fileparse($q->path_info || "/index", ".xml", ".json", ".txt", ".csv");
 my $from     = param('from')  || 0;
 my $count    = param('count') || 100;
 my $callback = param('callback');
@@ -52,6 +53,7 @@ my $full_url = $q->url(-full=>1);
 $suffix = ".json" unless $suffix;
 $content_type = "application/javascript" if $callback and $suffix eq ".json";
 $content_type = "application/xml"        if $suffix eq ".xml";
+$content_type = "text/plain"             if $suffix eq ".csv";
 
 $MODE_PRODUCTION = 1 if $mode eq q(production);
 $MODE_DEBUG      = 1 if $mode eq q(debug);
@@ -108,6 +110,18 @@ unless ( $MODE_PRODUCTION == 1 or $MODE_DEBUG == 0 ) {
 print $json->encode($output)  if $suffix eq ".json";
 print XMLout($output, NoAttr=>1, RootName=>'xml', XMLDecl=>1) if $suffix eq ".xml";
 print jsonp_footer($callback) if $suffix eq ".json";
+if ( $suffix eq ".csv" ) {
+  binmode STDOUT, ":encoding(UTF-8)";
+  my @columns = qw(candidate_name twitter_id cp_person_id party_name tw_mentioned_count tw_mentioned_share date);
+  my $csv = Text::CSV->new ( { binary => 1, } ) 
+    or die "Cannot use CSV: ".Text::CSV->error_diag ();
+  $csv->print(*STDOUT, \@columns); print "\n";
+  foreach my $data ( @{$output->{results}} ) {
+    my @row = map { $data->{$_} || "" } @columns;
+    $csv->print(*STDOUT, \@row); print "\n";
+  };
+
+}
 
 1;
 
