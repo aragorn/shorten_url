@@ -1,0 +1,62 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+FindBin::again();
+#use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
+use CGI qw(:standard escape escapeHTML -utf8);
+use Encode;
+use JSON;
+use LWP::Simple qw(!head);
+use XML::Bare;
+use File::Basename;
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+use Data::Dumper;
+
+my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
+CGI->compile();
+
+# This line should be commented out if output data is encoded properly.
+#binmode STDOUT, ":encoding(UTF-8)";
+
+our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
+our $cafe_api = q(http://10.10.215.48:8080/channel/report/drp/cafe/folder/);
+our $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
+
+my ($folder_id, $path, $suffix) = fileparse($q->path_info || "/0", ".xml");
+
+=rem
+print $q->header(-charset=>'utf-8',
+  -type=>$content_type,
+  -expires=>'+24h',
+  -cache_control => q(public, s-maxage=86400),
+);
+=cut
+print $q->header(-charset=>'utf-8',
+  -type=>$content_type,
+  -expires=>'+5s',
+  -cache_control => q(public, s-maxage=5),
+);
+
+my $url = $cafe_api . $folder_id;
+
+if ( $path eq "/channel/" ) {
+  my $output = fetch_cafe_channel($url);
+  #print $json->encode( { error => "unknown api - $path", url => $url } );
+  print $json->encode( $output->{data}->{dataSource} );
+} else {
+  print $json->encode( { error => "unknown api - $path", url => $url } );
+}
+
+exit;
+
+sub fetch_cafe_channel {
+  my $url = shift;
+  my $xml = LWP::Simple::get($url) or return [];
+  my $data_ref = new XML::Bare(text => $xml)->simple() or return [];
+  return $data_ref;
+}
+

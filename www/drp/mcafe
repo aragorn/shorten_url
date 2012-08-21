@@ -1,0 +1,72 @@
+#!/usr/bin/perl -w
+use strict;
+use warnings;
+use utf8;
+use FindBin;
+FindBin::again();
+#use CGI::Carp qw(warningsToBrowser fatalsToBrowser);
+use CGI qw(:standard escape escapeHTML -utf8);
+use Encode;
+use JSON;
+use LWP::Simple qw(!head);
+use XML::Bare;
+use File::Basename;
+use Benchmark;
+use Time::HiRes qw(gettimeofday tv_interval);
+use Data::Dumper;
+
+my ($BM1, $T01) = (new Benchmark, [gettimeofday]);
+CGI->compile();
+
+# This line should be commented out if output data is encoded properly.
+#binmode STDOUT, ":encoding(UTF-8)";
+
+our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
+our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
+our $port = $q->server_port;
+our @cafe_apis = (
+  qq(http://110.45.208.13:$port/drp/cafe/channel),
+  qq(http://110.45.208.13:$port/drp/cafe/channel),
+  qq(http://110.45.208.13:$port/drp/cafe/channel),
+  qq(http://110.45.208.14:$port/drp/cafe/channel),
+  qq(http://110.45.208.69:$port/drp/cafe/channel),
+);
+our $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
+
+my @folder_id = param('id');
+
+=rem
+print $q->header(-charset=>'utf-8',
+  -type=>$content_type,
+  -expires=>'+24h',
+  -cache_control => q(public, s-maxage=86400),
+);
+=cut
+print $q->header(-charset=>'utf-8',
+  -type=>$content_type,
+  -expires=>'+5s',
+  -cache_control => q(public, s-maxage=5),
+);
+
+my @data = map {
+  my $url = join("/", $cafe_apis[ $_ % 3 ], $_);
+  my $data = fetch_cafe_channel($url);
+  #$data->{url} = $url;
+  #$data;
+  $data->{channel};
+} @folder_id;
+
+print $json->encode( \@data );
+#print $json->encode( { error => "unknown api ", url => $url } );
+
+exit;
+
+sub fetch_cafe_channel {
+  my $url = shift;
+  my $string = LWP::Simple::get($url) or return { channel => undef };
+#print "string=$string\n";
+  my $data = $json->decode($string) or return { channel => undef };
+#print "data=$data\n";
+  return $data;
+}
+
