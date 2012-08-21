@@ -23,23 +23,25 @@ CGI->compile();
 
 our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
+our $port = $q->service_port;
 our $cafe_api = q(http://10.10.215.48:8080/channel/report/drp/cafe/folder/);
 our $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
 
 my ($folder_id, $path, $suffix) = fileparse($q->path_info || "/0", ".xml");
 
-=rem
-print $q->header(-charset=>'utf-8',
-  -type=>$content_type,
-  -expires=>'+24h',
-  -cache_control => q(public, s-maxage=86400),
-);
-=cut
-print $q->header(-charset=>'utf-8',
-  -type=>$content_type,
-  -expires=>'+5s',
-  -cache_control => q(public, s-maxage=5),
-);
+if ( $port == 80 ) {
+  print $q->header(-charset=>'utf-8',
+    -type=>$content_type,
+    -expires=>'+24h',
+    -cache_control => q(public, s-maxage=86400),
+  );
+} else {
+  print $q->header(-charset=>'utf-8',
+    -type=>$content_type,
+    -expires=>'+5s',
+    -cache_control => q(public, s-maxage=5),
+  );
+}
 
 my $url = $cafe_api . $folder_id;
 

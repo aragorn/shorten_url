@@ -35,18 +35,19 @@ our $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME
 
 my @folder_id = param('id');
 
-=rem
-print $q->header(-charset=>'utf-8',
-  -type=>$content_type,
-  -expires=>'+24h',
-  -cache_control => q(public, s-maxage=86400),
-);
-=cut
-print $q->header(-charset=>'utf-8',
-  -type=>$content_type,
-  -expires=>'+5s',
-  -cache_control => q(public, s-maxage=5),
-);
+if ( $port == 80 ) {
+  print $q->header(-charset=>'utf-8',
+    -type=>$content_type,
+    -expires=>'+24h',
+    -cache_control => q(public, s-maxage=86400),
+  );
+} else {
+  print $q->header(-charset=>'utf-8',
+    -type=>$content_type,
+    -expires=>'+5s',
+    -cache_control => q(public, s-maxage=5),
+  );
+}
 
 my @data = map {
   my $url = join("/", $cafe_apis[ $_ % 3 ], $_);
