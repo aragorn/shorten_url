@@ -26,8 +26,6 @@ our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 our $port = $q->server_port;
 our @cafe_apis = (
   qq(http://110.45.208.13:$port/drp/cafe/channel),
-  qq(http://110.45.208.13:$port/drp/cafe/channel),
-  qq(http://110.45.208.13:$port/drp/cafe/channel),
   qq(http://110.45.208.14:$port/drp/cafe/channel),
   qq(http://110.45.208.69:$port/drp/cafe/channel),
 );
