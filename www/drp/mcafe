@@ -53,7 +53,7 @@ my @data = map {
   my $data = fetch_cafe_channel($url);
   #$data->{url} = $url;
   #$data;
-  $data->{channel};
+  $data->{channel} || {};
 } @folder_id;
 
 print $json->encode( \@data );
