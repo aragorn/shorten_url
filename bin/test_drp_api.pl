@@ -93,31 +93,89 @@ sub test_cached_api {
   return $last_id;
 }
 
+{
+  use threads;
+  use threads::shared;
+  use Thread::Queue;
+
+  my $iqueue : shared;
+  my $oqueue : shared;
+  my @thread_pool;
+
+  sub prepare_thread_pool {
+    return if scalar @thread_pool > 0;
+    $iqueue = Thread::Queue->new;
+    $oqueue = Thread::Queue->new;
+    my $pool_size = 10;
+    @thread_pool = map { threads->new( \&thread_worker, $_ ); } (1..$pool_size);
+  }
+
+  sub input_enqueue { $iqueue->enqueue( @_ ); }
+  sub output_dequeue { return $oqueue->dequeue(); }
+  sub input_pending { return $iqueue->pending; }
+  sub output_pending { return $oqueue->pending; }
+
+  sub thread_worker {
+    my $num = shift;
+    while ( 1 ) {
+      my $url = $iqueue->dequeue;
+      print STDERR "worker got undef\n" unless defined $url;
+      $oqueue->enqueue(undef) unless defined $url;
+      next unless defined $url;
+    
+      my $json = LWP::Simple::get($url);
+      my $size = length $json;
+      #my $data = decode_json($json);
+      #my $id = $data->{channel}->{folder}->{id};
+    
+      #print Dumper($data->{channel}->{folder});
+      #sleep 1;
+      #print "url=$url\n";
+      #print "xml = ", substr($xml, 300, 100), "\n";
+
+      if ( $size > 400 ) {
+        print STDERR ".";
+        $oqueue->enqueue("."); 
+      } else {
+        print STDERR "!";
+        $oqueue->enqueue("!"); 
+      }
+    }
+    return;
+  }
+}
+
 sub test_thread_api {
   my $list = shift;
 
-  my $last_id = 0;
-  foreach ( @{$list} ) {
-    $last_id = $_->{id};
-    my $folder_id = $_->{channelid};
-    next if $folder_id < 1;
-  
-    my $url = $api . $folder_id ;
-    my $json = LWP::Simple::get($url);
-    my $size = length $json;
-    #my $data = decode_json($json);
-    #my $id = $data->{channel}->{folder}->{id};
+                my ($t1, $t01) = (new Benchmark, [gettimeofday]);
+  prepare_thread_pool();
 
-    #print Dumper($data->{channel}->{folder});
-    #sleep 1;
-    #print "url=$url\n";
-    #print "xml = ", substr($xml, 300, 100), "\n";
- 
-    if ( $size > 400 ) { print STDERR "."; }
-    else { print STDERR "!"; }
+
+                my ($t2, $t02) = (new Benchmark, [gettimeofday]);
+                print "created threads - elapsed=", tv_interval($t01, $t02), "\n";
+
+  my $last_id = 0;
+  input_enqueue( map { $api . $_->{channelid} } @{$list} );
+  print STDERR "\n";
+  input_enqueue( undef ); # end of job
+
+                my ($t3, $t03) = (new Benchmark, [gettimeofday]);
+                print "enqueue - elapsed=", tv_interval($t02, $t03), "\n";
+
+  my @output;
+  while ( $_ = output_dequeue() ) {
+    last unless defined;
+    #print STDERR "#[", input_pending(), "/", output_pending, "]" if (scalar @output) % 30 == 0;
+    push @output, $_;
   }
+  print STDERR "\n";
+
+                my ($t4, $t04) = (new Benchmark, [gettimeofday]);
+                print "dequeue - elapsed=", tv_interval($t03, $t04), "\n";
 
   return $last_id;
+
 }
 
 sub test_channel_api {
