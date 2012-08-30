@@ -32,8 +32,8 @@ my ($folder_id, $path, $suffix) = fileparse($q->path_info || "/0", ".xml");
 if ( $port == 80 ) {
   print $q->header(-charset=>'utf-8',
     -type=>$content_type,
-    -expires=>'+24h',
-    -cache_control => q(public, s-maxage=86400),
+    -expires=>'+40days',
+    -cache_control => q(public, s-maxage=3456000),
   );
 } else {
   print $q->header(-charset=>'utf-8',
