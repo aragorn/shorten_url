@@ -24,7 +24,7 @@ CGI->compile();
 our $q    = new CGI; $q->charset('utf-8'); # for proper escapeHTML
 our $json = new JSON; $json->allow_nonref->allow_blessed->utf8(1)->pretty(1);
 our $port = $q->server_port;
-our $cafe_api = q(http://10.10.215.48:8080/channel/report/drp/cafe/folder/);
+our $cafe_api = q(http://10.10.215.48:8080/channel/report%s%s);
 our $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
 
 my ($folder_id, $path, $suffix) = fileparse($q->path_info || "/0", ".xml");
@@ -43,11 +43,11 @@ if ( $port == 80 ) {
   );
 }
 
-my $url = $cafe_api . $folder_id;
+my $url = sprintf($cafe_api, $path, $folder_id);
 
-if ( $path eq "/drp/cafe/folder/" ) {
-  my $output = fetch_cafe_channel($url);
-  #print $json->encode( { error => "unknown api - $path", url => $url } );
+if ( length $path > 5 ) {
+  my $output = fetch_report_data($url);
+  #print $json->encode( { error => "unknown api - $path", url => $url, output => $output } );
   print $json->encode( $output->{data}->{dataSource} );
 } else {
   print $json->encode( { error => "unknown api - $path", url => $url } );
@@ -55,7 +55,7 @@ if ( $path eq "/drp/cafe/folder/" ) {
 
 exit;
 
-sub fetch_cafe_channel {
+sub fetch_report_data {
   my $url = shift;
   my $xml = LWP::Simple::get($url) or return [];
   my $data_ref = new XML::Bare(text => $xml)->simple() or return [];
