@@ -32,20 +32,20 @@ my ($folder_id, $path, $suffix) = fileparse($q->path_info || "/0", ".xml");
 if ( $port == 80 ) {
   print $q->header(-charset=>'utf-8',
     -type=>$content_type,
-    -expires=>'+40days',
-    -cache_control => q(public, s-maxage=3456000),
+    -expires=>'+20days',
+    -cache_control => q(public, s-maxage=).(86400*20),
   );
 } else {
   print $q->header(-charset=>'utf-8',
     -type=>$content_type,
-    -expires=>'+5s',
-    -cache_control => q(public, s-maxage=5),
+    -expires=>'+30s',
+    -cache_control => q(public, s-maxage=30),
   );
 }
 
 my $url = $cafe_api . $folder_id;
 
-if ( $path eq "/channel/" ) {
+if ( $path eq "/drp/cafe/folder/" ) {
   my $output = fetch_cafe_channel($url);
   #print $json->encode( { error => "unknown api - $path", url => $url } );
   print $json->encode( $output->{data}->{dataSource} );
