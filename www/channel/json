@@ -8,6 +8,7 @@ FindBin::again();
 use CGI qw(:standard escape escapeHTML -utf8);
 use Encode;
 use JSON;
+use Cache::Memcached;
 use LWP::Simple qw(!head);
 use XML::Bare;
 use File::Basename;
@@ -34,10 +35,20 @@ our @cafe_apis = (
   qq(http://110.45.208.69:$port/drp/cafe/channel),
 );
 our $content_type = "application/json"; # http://en.wikipedia.org/wiki/JSON#MIME_type
+our $cache = new Cache::Memcached {
+  servers => [qw(
+    127.0.0.1:11211
+    127.0.0.1:11211
+    127.0.0.1:11211
+  )],
+  debug => 0,
+};
 
 my @folder_id = param('id');
+my $expire_time = 3;
 
-if ( $port == 80 ) {
+if ( $port == 81 ) {
+  $expire_time = 86400 * 20;
   print $q->header(-charset=>'utf-8',
     -type=>$content_type,
     -expires=>'+20days',
@@ -46,18 +57,26 @@ if ( $port == 80 ) {
 } else {
   print $q->header(-charset=>'utf-8',
     -type=>$content_type,
-    -expires=>'+30s',
-    -cache_control => q(public, s-maxage=30),
+    -expires=>'+'.$expire_time.'s',
+    -cache_control => qq(public, s-maxage=$expire_time),
   );
 }
 
+my @urls = map { join("/", $cafe_apis[ $_ % 3 ], $_); } @folder_id;
+my $cached_data = $cache->get_multi( @urls );
+#print Dumper($cached_data), "\n";;
 my @data = map {
-  my $url = join("/", $cafe_apis[ $_ % 3 ], $_);
-  my $data = fetch_cafe_channel($url);
-  #$data->{url} = $url;
-  #$data;
-  $data->{channel} || {};
-} @folder_id;
+  my $data = $cached_data->{$_};
+  if ( not defined $data ) {
+    my $fetched = fetch_cafe_channel($_);
+    $data = $fetched->{channel} || {};
+    $cache->set($_, $data);
+    $data->{debug} = "fetched at ".scalar localtime;
+  } else {
+    $data->{debug} = "from memcached";
+  }
+  $data;
+} @urls;
 
 print $json->encode( \@data );
 #print $json->encode( { error => "unknown api ", url => $url } );
@@ -67,7 +86,7 @@ exit;
 sub fetch_cafe_channel {
   my $url = shift;
   my $string = LWP::Simple::get($url) or return { channel => undef };
-  utf8::encode($string);
+  #utf8::encode($string);
 #print "string=$string\n";
   my $data = $json->decode($string) or return { channel => undef };
 #print "data=$data\n";
