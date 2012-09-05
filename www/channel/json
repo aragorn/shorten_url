@@ -67,6 +67,7 @@ exit;
 sub fetch_cafe_channel {
   my $url = shift;
   my $string = LWP::Simple::get($url) or return { channel => undef };
+  utf8::encode($string);
 #print "string=$string\n";
   my $data = $json->decode($string) or return { channel => undef };
 #print "data=$data\n";
